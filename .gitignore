@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.coverage
+_coverage_html/
+dist/
+build/
+.DS_Store

@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bt-web-report-cli"
+version = "0.0.1"
+description = "btwr — PHPP scraper, project bootstrapper, and deploy driver for the bt-web-report platform."
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.11"
+authors = [{ name = "BLDGTYP", email = "phtools@bldgtyp.com" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+dependencies = [
+    "bt-web-report-schemas",
+    "click>=8.1",
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "black", "mypy"]
+# xlwings is only needed on macOS dev machines where Excel is the active read path.
+# Kept optional so CI can install without it.
+xlwings = ["xlwings>=0.30"]
+
+[project.scripts]
+btwr = "bt_web_report_cli.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/bldgtyp/bt-web-report-cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["bt_web_report_cli*"]
+
+[tool.black]
+line-length = 120
