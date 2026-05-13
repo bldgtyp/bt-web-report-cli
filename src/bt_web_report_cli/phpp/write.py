@@ -52,6 +52,50 @@ ROOM_AIRFLOWS_FIELDNAMES = (
     "excel_row",
 )
 
+BUILDING_METRICS_FIELDNAMES = (
+    "metric",
+    "variant_id",
+    "units",
+    "value",
+    "source_field_id",
+    "source_label",
+    "excel_row",
+)
+
+CERTIFICATION_FIELDNAMES = (
+    "metric",
+    "role",
+    "variant_id",
+    "units",
+    "value",
+    "source_field_id",
+    "source_label",
+    "excel_row",
+)
+
+ENERGY_FIELDNAMES = (
+    "metric_group",
+    "end_use",
+    "variant_id",
+    "units",
+    "value",
+    "source_field_id",
+    "source_label",
+    "excel_row",
+)
+
+DEMAND_DETAIL_FIELDNAMES = (
+    "demand_type",
+    "contribution_type",
+    "item",
+    "variant_id",
+    "units",
+    "value",
+    "source_field_id",
+    "source_label",
+    "excel_row",
+)
+
 
 def write_report_data(
     output_dir: Path,
@@ -59,6 +103,10 @@ def write_report_data(
     variants_rows: list[dict[str, Any]],
     climate_monthly_rows: list[dict[str, Any]],
     room_airflow_rows: list[dict[str, Any]],
+    building_metric_rows: list[dict[str, Any]],
+    certification_rows: list[dict[str, Any]],
+    energy_rows: list[dict[str, Any]],
+    demand_detail_rows: list[dict[str, Any]],
 ) -> None:
     """Write manifest and CSV data through an atomic directory replacement."""
 
@@ -72,6 +120,10 @@ def write_report_data(
         _write_csv(temp_dir / "variants.csv", variants_rows, VARIANTS_FIELDNAMES)
         _write_csv(temp_dir / "climate-monthly.csv", climate_monthly_rows, CLIMATE_MONTHLY_FIELDNAMES)
         _write_csv(temp_dir / "room-airflows.csv", room_airflow_rows, ROOM_AIRFLOWS_FIELDNAMES)
+        _write_csv(temp_dir / "building-metrics.csv", building_metric_rows, BUILDING_METRICS_FIELDNAMES)
+        _write_csv(temp_dir / "certification.csv", certification_rows, CERTIFICATION_FIELDNAMES)
+        _write_csv(temp_dir / "energy.csv", energy_rows, ENERGY_FIELDNAMES)
+        _write_csv(temp_dir / "demand-detail.csv", demand_detail_rows, DEMAND_DETAIL_FIELDNAMES)
         if backup_dir.exists():
             shutil.rmtree(backup_dir)
         if output_dir.exists():

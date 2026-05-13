@@ -55,6 +55,56 @@ def test_scrape_fixture_writes_manifest_and_variants_csv(tmp_path: Path) -> None
     assert airflow_rows[-1]["room_name"] == "Totals"
     assert any(row["room_name"] == "104-KITCHEN" for row in airflow_rows)
 
+    building_metric_rows = list(csv.DictReader((output_dir / "building-metrics.csv").open()))
+    tfa_ft2 = [
+        row
+        for row in building_metric_rows
+        if row["metric"] == "treated_floor_area" and row["variant_id"] == "code_minimum"
+    ][0]
+    assert tfa_ft2["units"] == "ft2"
+    assert round(float(tfa_ft2["value"]), 6) == round(290.2644471258237 * 10.76391042, 6)
+
+    certification_rows = list(csv.DictReader((output_dir / "certification.csv").open()))
+    heat_demand = [
+        row
+        for row in certification_rows
+        if row["metric"] == "heat_demand" and row["role"] == "result" and row["variant_id"] == "code_minimum"
+    ][0]
+    assert heat_demand["units"] == "kWh"
+    assert round(float(heat_demand["value"]), 6) == round(63.764478348563266 * 290.2644471258237, 6)
+    heat_demand_limit = [
+        row
+        for row in certification_rows
+        if row["metric"] == "heat_demand" and row["role"] == "limit" and row["variant_id"] == "enerphit_by_demand"
+    ][0]
+    assert heat_demand_limit["units"] == "kWh"
+    assert round(float(heat_demand_limit["value"]), 6) == round(20 * 290.2644471258237, 6)
+
+    energy_rows = list(csv.DictReader((output_dir / "energy.csv").open()))
+    assert any(
+        row["metric_group"] == "site_energy" and row["end_use"] == "heating" and row["variant_id"] == "code_minimum"
+        for row in energy_rows
+    )
+    assert any(
+        row["metric_group"] == "phius_net_source_energy"
+        and row["end_use"] == "total"
+        and row["variant_id"] == "enerphit_by_demand"
+        for row in energy_rows
+    )
+
+    demand_detail_rows = list(csv.DictReader((output_dir / "demand-detail.csv").open()))
+    assert any(
+        row["demand_type"] == "heating"
+        and row["contribution_type"] == "loss"
+        and row["item"] == "walls_ag"
+        and row["variant_id"] == "code_minimum"
+        for row in demand_detail_rows
+    )
+    assert any(
+        row["demand_type"] == "cooling" and row["contribution_type"] == "limit" and row["variant_id"] == "code_minimum"
+        for row in demand_detail_rows
+    )
+
 
 def test_scrape_linde_fixture_uses_dynamic_r_value_labels(tmp_path: Path) -> None:
     output_dir = tmp_path / "data"
@@ -83,6 +133,18 @@ def test_scrape_linde_fixture_uses_dynamic_r_value_labels(tmp_path: Path) -> Non
     assert airflow_rows[-1]["room_name"] == "Totals"
     assert any(row["room_name"] == "113-BATH" for row in airflow_rows)
     assert any(row["room_name"] == "Kitchen Extract Hood - ON" for row in airflow_rows)
+
+    building_metric_rows = list(csv.DictReader((output_dir / "building-metrics.csv").open()))
+    assert len([row for row in building_metric_rows if row["metric"] == "treated_floor_area"]) == 5
+
+    certification_rows = list(csv.DictReader((output_dir / "certification.csv").open()))
+    assert any(row["metric"] == "per_demand" and row["variant_id"] == "as_drawn" for row in certification_rows)
+
+    energy_rows = list(csv.DictReader((output_dir / "energy.csv").open()))
+    assert any(row["metric_group"] == "per" and row["variant_id"] == "as_drawn" for row in energy_rows)
+
+    demand_detail_rows = list(csv.DictReader((output_dir / "demand-detail.csv").open()))
+    assert any(row["demand_type"] == "cooling" and row["variant_id"] == "as_drawn" for row in demand_detail_rows)
 
 
 def test_scrape_unknown_version_fails_loudly(tmp_path: Path) -> None:

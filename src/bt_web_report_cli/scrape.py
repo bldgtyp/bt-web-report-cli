@@ -12,6 +12,7 @@ from bt_web_report_schemas.phpp import get_schema
 from bt_web_report_cli import __version__
 from bt_web_report_cli.io.project import default_output_dir, resolve_workbook_path
 from bt_web_report_cli.io.workbook_openpyxl import OpenpyxlWorkbookReader
+from bt_web_report_cli.phpp.transform import build_derived_tables
 from bt_web_report_cli.phpp.write import write_report_data
 
 
@@ -57,6 +58,7 @@ def scrape_project(
     if not climate_rows:
         msg = f"No monthly climate data found in workbook: {workbook_path}"
         raise ValueError(msg)
+    derived_tables = build_derived_tables(rows, (variant.id for variant in variants))
 
     recommended_variant = variants[-1]
     manifest = Manifest(
@@ -68,7 +70,17 @@ def scrape_project(
         source_workbook=_fingerprint(workbook_path),
     )
 
-    write_report_data(output_dir or default_output_dir(project_path), manifest, rows, climate_rows, room_airflow_rows)
+    write_report_data(
+        output_dir or default_output_dir(project_path),
+        manifest,
+        rows,
+        climate_rows,
+        room_airflow_rows,
+        derived_tables.building_metrics,
+        derived_tables.certification,
+        derived_tables.energy,
+        derived_tables.demand_detail,
+    )
     return manifest
 
 
