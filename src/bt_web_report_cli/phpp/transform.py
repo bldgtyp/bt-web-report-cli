@@ -324,6 +324,11 @@ def _number(value: Any) -> float | None:
         return None
     if isinstance(value, int | float):
         return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
     return None
 
 

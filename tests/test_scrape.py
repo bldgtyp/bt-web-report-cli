@@ -1,25 +1,51 @@
 import csv
 import json
+import os
+from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
+from openpyxl import Workbook
 
 from bt_web_report_cli.__main__ import main
+from bt_web_report_cli.phpp.write import REPORT_CSV_TABLES
 
 
-FIXTURE_DIR = Path(__file__).resolve().parents[2] / "test-files" / "phpp"
+FIXTURE_DIR = Path(os.environ.get("BTWR_TEST_PHPP_DIR", Path(__file__).resolve().parents[2] / "test-files" / "phpp"))
+GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
 VANDAM_FIXTURE = FIXTURE_DIR / "2606-29-Vandam-St-260506.xlsx"
 LINDE_FIXTURE = FIXTURE_DIR / "2524-Linde-Residence-250709.xlsx"
 
 
-def test_scrape_fixture_writes_manifest_and_variants_csv(tmp_path: Path) -> None:
-    output_dir = tmp_path / "data"
-    runner = CliRunner()
+@dataclass(frozen=True)
+class ScrapeOutput:
+    data_dir: Path
+    command_output: str
 
-    result = runner.invoke(main, ["scrape", str(VANDAM_FIXTURE), "--out", str(output_dir)])
 
-    assert result.exit_code == 0, result.output
-    assert "scraped PHPP 10.6: 5 variants, recommended=enerphit_by_demand" in result.output
+@pytest.fixture(scope="session")
+def scraped_vandam(tmp_path_factory: pytest.TempPathFactory) -> ScrapeOutput:
+    return _scrape_fixture(VANDAM_FIXTURE, tmp_path_factory.mktemp("vandam-scrape") / "data")
+
+
+@pytest.fixture(scope="session")
+def scraped_linde(tmp_path_factory: pytest.TempPathFactory) -> ScrapeOutput:
+    return _scrape_fixture(LINDE_FIXTURE, tmp_path_factory.mktemp("linde-scrape") / "data")
+
+
+def test_vandam_golden_csvs(scraped_vandam: ScrapeOutput) -> None:
+    _assert_golden_csvs(scraped_vandam.data_dir, GOLDEN_DIR / "vandam")
+
+
+def test_linde_golden_csvs(scraped_linde: ScrapeOutput) -> None:
+    _assert_golden_csvs(scraped_linde.data_dir, GOLDEN_DIR / "linde")
+
+
+def test_scrape_fixture_writes_manifest_and_variants_csv(scraped_vandam: ScrapeOutput) -> None:
+    output_dir = scraped_vandam.data_dir
+
+    assert "scraped PHPP 10.6: 5 variants, recommended=enerphit_by_demand" in scraped_vandam.command_output
 
     manifest = json.loads((output_dir / "manifest.json").read_text())
     assert manifest["phpp_version"] == "10.6"
@@ -106,14 +132,10 @@ def test_scrape_fixture_writes_manifest_and_variants_csv(tmp_path: Path) -> None
     )
 
 
-def test_scrape_linde_fixture_uses_dynamic_r_value_labels(tmp_path: Path) -> None:
-    output_dir = tmp_path / "data"
-    runner = CliRunner()
+def test_scrape_linde_fixture_uses_dynamic_r_value_labels(scraped_linde: ScrapeOutput) -> None:
+    output_dir = scraped_linde.data_dir
 
-    result = runner.invoke(main, ["scrape", str(LINDE_FIXTURE), "--out", str(output_dir)])
-
-    assert result.exit_code == 0, result.output
-    assert "scraped PHPP 10.6: 5 variants, recommended=as_drawn" in result.output
+    assert "scraped PHPP 10.6: 5 variants, recommended=as_drawn" in scraped_linde.command_output
 
     rows = list(csv.DictReader((output_dir / "variants.csv").open()))
     r_value_rows = [row for row in rows if row["section"] == "r_values" and row["variant_id"] == "as_drawn"]
@@ -148,13 +170,15 @@ def test_scrape_linde_fixture_uses_dynamic_r_value_labels(tmp_path: Path) -> Non
 
 
 def test_scrape_unknown_version_fails_loudly(tmp_path: Path) -> None:
+    workbook_path = tmp_path / "minimal.xlsx"
+    _save_minimal_workbook(workbook_path)
     runner = CliRunner()
 
     result = runner.invoke(
         main,
         [
             "scrape",
-            str(VANDAM_FIXTURE),
+            str(workbook_path),
             "--out",
             str(tmp_path / "data"),
             "--phpp-version",
@@ -164,3 +188,89 @@ def test_scrape_unknown_version_fails_loudly(tmp_path: Path) -> None:
 
     assert result.exit_code != 0
     assert "Unsupported PHPP version '10.7'" in result.output
+
+
+def test_scrape_missing_workbook_fails_loudly(tmp_path: Path) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["scrape", str(tmp_path / "missing.xlsx"), "--out", str(tmp_path / "data")])
+
+    assert result.exit_code != 0
+    assert "does not exist" in result.output
+
+
+def test_scrape_unreadable_workbook_fails_loudly(tmp_path: Path) -> None:
+    workbook_path = tmp_path / "not-a-workbook.xlsx"
+    workbook_path.write_text("not an xlsx file")
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["scrape", str(workbook_path), "--out", str(tmp_path / "data")])
+
+    assert result.exit_code != 0
+    assert "File is not a zip file" in result.output
+
+
+def test_scrape_missing_variants_sheet_fails_loudly(tmp_path: Path) -> None:
+    workbook_path = tmp_path / "missing-variants.xlsx"
+    _save_minimal_workbook(workbook_path)
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["scrape", str(workbook_path), "--out", str(tmp_path / "data")])
+
+    assert result.exit_code != 0
+    assert "Worksheet Variants does not exist" in result.output
+
+
+def test_scrape_empty_variant_set_fails_loudly(tmp_path: Path) -> None:
+    workbook_path = tmp_path / "empty-variants.xlsx"
+    workbook = _minimal_workbook()
+    workbook.create_sheet("Variants")
+    workbook.save(workbook_path)
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["scrape", str(workbook_path), "--out", str(tmp_path / "data")])
+
+    assert result.exit_code != 0
+    assert "No active variants found" in result.output
+
+
+def test_scrape_all_null_variant_data_fails_loudly(tmp_path: Path) -> None:
+    workbook_path = tmp_path / "all-null-variant-data.xlsx"
+    workbook = _minimal_workbook()
+    variants = workbook.create_sheet("Variants")
+    variants["E2"] = "1 - Empty Variant"
+    workbook.save(workbook_path)
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["scrape", str(workbook_path), "--out", str(tmp_path / "data")])
+
+    assert result.exit_code != 0
+    assert "No variant data found" in result.output
+
+
+def _scrape_fixture(workbook_path: Path, output_dir: Path) -> ScrapeOutput:
+    if not workbook_path.exists():
+        pytest.skip(f"PHPP workbook fixture is not available: {workbook_path}")
+    runner = CliRunner()
+    result = runner.invoke(main, ["scrape", str(workbook_path), "--out", str(output_dir)])
+    assert result.exit_code == 0, result.output
+    return ScrapeOutput(data_dir=output_dir, command_output=result.output)
+
+
+def _assert_golden_csvs(actual_dir: Path, expected_dir: Path) -> None:
+    for spec in REPORT_CSV_TABLES:
+        assert (actual_dir / spec.filename).read_text().splitlines() == (
+            expected_dir / spec.filename
+        ).read_text().splitlines()
+
+
+def _save_minimal_workbook(path: Path) -> None:
+    _minimal_workbook().save(path)
+
+
+def _minimal_workbook() -> Workbook:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Data"
+    sheet["B5"] = "10.6"
+    return workbook

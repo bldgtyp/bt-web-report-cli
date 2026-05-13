@@ -1,0 +1,61 @@
+metric,variant_id,units,value,source_field_id,source_label,excel_row
+treated_floor_area,code_minimum,ft2,3124.380506973193,geometry.tfa,TFA,316
+building_envelope_area,code_minimum,ft2,4215.508252436189,geometry.building_envelope_area,Building Envelope Area,319
+interior_net_volume,code_minimum,ft3,25626.49436558331,geometry.vn50,Vn50,318
+gross_volume,code_minimum,ft3,33314.4426752583,geometry.gross_volume,Gross Volume,320
+envelope_area_to_tfa,code_minimum,ft2/ft2,1.349230109145716,,,
+envelope_area_to_gross_volume,code_minimum,ft2/ft3,0.41514750171133846,,,
+tfa_to_gross_volume,code_minimum,ft2/ft3,0.3076921415385512,,,
+window_area_north,code_minimum,ft2,333.6535854941222,geometry.window_area_north,Window Area (North),321
+window_area_east,code_minimum,ft2,0.0,geometry.window_area_east,Window Area (East),322
+window_area_south,code_minimum,ft2,206.4497055664044,geometry.window_area_south,Window Area (South),323
+window_area_west,code_minimum,ft2,0.0,geometry.window_area_west,Window Area (West),324
+window_area_horizontal,code_minimum,ft2,0.0,geometry.window_area_horiz,Window Area (Horiz),325
+treated_floor_area,improved_envelope,ft2,3124.380506973193,geometry.tfa,TFA,316
+building_envelope_area,improved_envelope,ft2,4215.508252436189,geometry.building_envelope_area,Building Envelope Area,319
+interior_net_volume,improved_envelope,ft3,25626.49436558331,geometry.vn50,Vn50,318
+gross_volume,improved_envelope,ft3,33314.4426752583,geometry.gross_volume,Gross Volume,320
+envelope_area_to_tfa,improved_envelope,ft2/ft2,1.349230109145716,,,
+envelope_area_to_gross_volume,improved_envelope,ft2/ft3,0.41514750171133846,,,
+tfa_to_gross_volume,improved_envelope,ft2/ft3,0.3076921415385512,,,
+window_area_north,improved_envelope,ft2,333.6535854941222,geometry.window_area_north,Window Area (North),321
+window_area_east,improved_envelope,ft2,0.0,geometry.window_area_east,Window Area (East),322
+window_area_south,improved_envelope,ft2,206.4497055664044,geometry.window_area_south,Window Area (South),323
+window_area_west,improved_envelope,ft2,0.0,geometry.window_area_west,Window Area (West),324
+window_area_horizontal,improved_envelope,ft2,0.0,geometry.window_area_horiz,Window Area (Horiz),325
+treated_floor_area,improved_hvac,ft2,3124.380506973193,geometry.tfa,TFA,316
+building_envelope_area,improved_hvac,ft2,4215.508252436189,geometry.building_envelope_area,Building Envelope Area,319
+interior_net_volume,improved_hvac,ft3,25626.49436558331,geometry.vn50,Vn50,318
+gross_volume,improved_hvac,ft3,33314.4426752583,geometry.gross_volume,Gross Volume,320
+envelope_area_to_tfa,improved_hvac,ft2/ft2,1.349230109145716,,,
+envelope_area_to_gross_volume,improved_hvac,ft2/ft3,0.41514750171133846,,,
+tfa_to_gross_volume,improved_hvac,ft2/ft3,0.3076921415385512,,,
+window_area_north,improved_hvac,ft2,333.6535854941222,geometry.window_area_north,Window Area (North),321
+window_area_east,improved_hvac,ft2,0.0,geometry.window_area_east,Window Area (East),322
+window_area_south,improved_hvac,ft2,206.4497055664044,geometry.window_area_south,Window Area (South),323
+window_area_west,improved_hvac,ft2,0.0,geometry.window_area_west,Window Area (West),324
+window_area_horizontal,improved_hvac,ft2,0.0,geometry.window_area_horiz,Window Area (Horiz),325
+treated_floor_area,enerphit_by_component,ft2,3124.380506973193,geometry.tfa,TFA,316
+building_envelope_area,enerphit_by_component,ft2,4215.508252436189,geometry.building_envelope_area,Building Envelope Area,319
+interior_net_volume,enerphit_by_component,ft3,25626.49436558331,geometry.vn50,Vn50,318
+gross_volume,enerphit_by_component,ft3,33314.4426752583,geometry.gross_volume,Gross Volume,320
+envelope_area_to_tfa,enerphit_by_component,ft2/ft2,1.349230109145716,,,
+envelope_area_to_gross_volume,enerphit_by_component,ft2/ft3,0.41514750171133846,,,
+tfa_to_gross_volume,enerphit_by_component,ft2/ft3,0.3076921415385512,,,
+window_area_north,enerphit_by_component,ft2,333.6535854941222,geometry.window_area_north,Window Area (North),321
+window_area_east,enerphit_by_component,ft2,0.0,geometry.window_area_east,Window Area (East),322
+window_area_south,enerphit_by_component,ft2,206.4497055664044,geometry.window_area_south,Window Area (South),323
+window_area_west,enerphit_by_component,ft2,0.0,geometry.window_area_west,Window Area (West),324
+window_area_horizontal,enerphit_by_component,ft2,0.0,geometry.window_area_horiz,Window Area (Horiz),325
+treated_floor_area,enerphit_by_demand,ft2,3124.380506973193,geometry.tfa,TFA,316
+building_envelope_area,enerphit_by_demand,ft2,4215.508252436189,geometry.building_envelope_area,Building Envelope Area,319
+interior_net_volume,enerphit_by_demand,ft3,25626.49436558331,geometry.vn50,Vn50,318
+gross_volume,enerphit_by_demand,ft3,33314.4426752583,geometry.gross_volume,Gross Volume,320
+envelope_area_to_tfa,enerphit_by_demand,ft2/ft2,1.349230109145716,,,
+envelope_area_to_gross_volume,enerphit_by_demand,ft2/ft3,0.41514750171133846,,,
+tfa_to_gross_volume,enerphit_by_demand,ft2/ft3,0.3076921415385512,,,
+window_area_north,enerphit_by_demand,ft2,333.6535854941222,geometry.window_area_north,Window Area (North),321
+window_area_east,enerphit_by_demand,ft2,0.0,geometry.window_area_east,Window Area (East),322
+window_area_south,enerphit_by_demand,ft2,206.4497055664044,geometry.window_area_south,Window Area (South),323
+window_area_west,enerphit_by_demand,ft2,0.0,geometry.window_area_west,Window Area (West),324
+window_area_horizontal,enerphit_by_demand,ft2,0.0,geometry.window_area_horiz,Window Area (Horiz),325

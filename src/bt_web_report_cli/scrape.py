@@ -31,11 +31,12 @@ def scrape_project(
         raise ValueError(msg)
 
     workbook_path = resolve_workbook_path(project_path, phpp_path)
-    if not workbook_path.exists():
+    try:
+        reader = OpenpyxlWorkbookReader(workbook_path)
+    except FileNotFoundError as exc:
         msg = f"PHPP workbook does not exist: {workbook_path}"
-        raise FileNotFoundError(msg)
+        raise FileNotFoundError(msg) from exc
 
-    reader = OpenpyxlWorkbookReader(workbook_path)
     detected_version = phpp_version or reader.detect_phpp_version()
     schema = get_schema(detected_version)
     variant_columns = reader.read_variant_columns(schema)
@@ -50,11 +51,11 @@ def scrape_project(
         for column in variant_columns
     )
     rows = reader.read_variants(schema, variant_columns)
-    climate_rows = reader.read_climate_monthly(schema)
-    room_airflow_rows = reader.read_room_airflows(schema)
     if not rows:
         msg = f"No variant data found in workbook: {workbook_path}"
         raise ValueError(msg)
+    climate_rows = reader.read_climate_monthly(schema)
+    room_airflow_rows = reader.read_room_airflows(schema)
     if not climate_rows:
         msg = f"No monthly climate data found in workbook: {workbook_path}"
         raise ValueError(msg)

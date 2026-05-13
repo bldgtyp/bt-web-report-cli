@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
 import os
 import shutil
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
+
+
+@dataclass(frozen=True)
+class CsvTableSpec:
+    filename: str
+    fieldnames: tuple[str, ...]
 
 
 VARIANTS_FIELDNAMES = (
@@ -96,6 +104,31 @@ DEMAND_DETAIL_FIELDNAMES = (
     "excel_row",
 )
 
+VARIANTS_TABLE = CsvTableSpec("variants.csv", VARIANTS_FIELDNAMES)
+CLIMATE_MONTHLY_TABLE = CsvTableSpec("climate-monthly.csv", CLIMATE_MONTHLY_FIELDNAMES)
+ROOM_AIRFLOWS_TABLE = CsvTableSpec("room-airflows.csv", ROOM_AIRFLOWS_FIELDNAMES)
+BUILDING_METRICS_TABLE = CsvTableSpec("building-metrics.csv", BUILDING_METRICS_FIELDNAMES)
+CERTIFICATION_TABLE = CsvTableSpec("certification.csv", CERTIFICATION_FIELDNAMES)
+ENERGY_TABLE = CsvTableSpec("energy.csv", ENERGY_FIELDNAMES)
+DEMAND_DETAIL_TABLE = CsvTableSpec("demand-detail.csv", DEMAND_DETAIL_FIELDNAMES)
+
+REPORT_CSV_TABLES = (
+    VARIANTS_TABLE,
+    CLIMATE_MONTHLY_TABLE,
+    ROOM_AIRFLOWS_TABLE,
+    BUILDING_METRICS_TABLE,
+    CERTIFICATION_TABLE,
+    ENERGY_TABLE,
+    DEMAND_DETAIL_TABLE,
+)
+
+DERIVED_REPORT_CSV_TABLES = (
+    ("building_metrics", BUILDING_METRICS_TABLE),
+    ("certification", CERTIFICATION_TABLE),
+    ("energy", ENERGY_TABLE),
+    ("demand_detail", DEMAND_DETAIL_TABLE),
+)
+
 
 def write_report_data(
     output_dir: Path,
@@ -117,13 +150,16 @@ def write_report_data(
 
     try:
         _write_json(temp_dir / "manifest.json", manifest)
-        _write_csv(temp_dir / "variants.csv", variants_rows, VARIANTS_FIELDNAMES)
-        _write_csv(temp_dir / "climate-monthly.csv", climate_monthly_rows, CLIMATE_MONTHLY_FIELDNAMES)
-        _write_csv(temp_dir / "room-airflows.csv", room_airflow_rows, ROOM_AIRFLOWS_FIELDNAMES)
-        _write_csv(temp_dir / "building-metrics.csv", building_metric_rows, BUILDING_METRICS_FIELDNAMES)
-        _write_csv(temp_dir / "certification.csv", certification_rows, CERTIFICATION_FIELDNAMES)
-        _write_csv(temp_dir / "energy.csv", energy_rows, ENERGY_FIELDNAMES)
-        _write_csv(temp_dir / "demand-detail.csv", demand_detail_rows, DEMAND_DETAIL_FIELDNAMES)
+        for spec, rows in (
+            (VARIANTS_TABLE, variants_rows),
+            (CLIMATE_MONTHLY_TABLE, climate_monthly_rows),
+            (ROOM_AIRFLOWS_TABLE, room_airflow_rows),
+            (BUILDING_METRICS_TABLE, building_metric_rows),
+            (CERTIFICATION_TABLE, certification_rows),
+            (ENERGY_TABLE, energy_rows),
+            (DEMAND_DETAIL_TABLE, demand_detail_rows),
+        ):
+            _write_csv(temp_dir / spec.filename, rows, spec.fieldnames)
         if backup_dir.exists():
             shutil.rmtree(backup_dir)
         if output_dir.exists():
@@ -144,7 +180,12 @@ def _write_json(path: Path, manifest: BaseModel) -> None:
 
 
 def _write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: tuple[str, ...]) -> None:
-    with path.open("w", newline="") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    path.write_bytes(csv_bytes(rows, fieldnames))
+
+
+def csv_bytes(rows: list[dict[str, Any]], fieldnames: tuple[str, ...]) -> bytes:
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue().encode()
