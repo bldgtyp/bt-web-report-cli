@@ -52,4 +52,11 @@ def _find_phpp_entry(data: dict[str, Any]) -> str | None:
             nested = value.get("path")
             if isinstance(nested, str):
                 return nested
+
+    source_files = data.get("source_files")
+    if isinstance(source_files, dict):
+        value = source_files.get("phpp_path")
+        if isinstance(value, str) and value:
+            return value
+
     return None
