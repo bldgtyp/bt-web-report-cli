@@ -10,7 +10,7 @@ def test_resolve_workbook_path_reads_template_source_files_phpp_path(tmp_path: P
     workbook.parent.mkdir()
     workbook.write_text("placeholder")
     (project / "project.yaml").write_text(
-        'source_files:\n'
+        "source_files:\n"
         '  phpp_path: "../07_PHPP/model.xlsx"\n'
         '  data_dir: "data"\n'
         '  assets_dir: "public/assets"\n'
