@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
-
 M2_TO_FT2 = 10.76391042
 M3_TO_FT3 = 35.31466672
 

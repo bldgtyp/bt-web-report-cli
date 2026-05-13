@@ -6,7 +6,6 @@ import pytest
 from bt_web_report_cli.phpp.transform import build_derived_tables
 from bt_web_report_cli.phpp.write import DERIVED_REPORT_CSV_TABLES, csv_bytes
 
-
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
 
 

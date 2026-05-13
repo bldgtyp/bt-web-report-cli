@@ -129,6 +129,8 @@ DERIVED_REPORT_CSV_TABLES = (
     ("demand_detail", DEMAND_DETAIL_TABLE),
 )
 
+FLOAT_SIGNIFICANT_DIGITS = 12
+
 
 def write_report_data(
     output_dir: Path,
@@ -187,5 +189,21 @@ def csv_bytes(rows: list[dict[str, Any]], fieldnames: tuple[str, ...]) -> bytes:
     output = io.StringIO(newline="")
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
-    writer.writerows(rows)
+    writer.writerows(csv_rows(rows, fieldnames))
     return output.getvalue().encode()
+
+
+def csv_rows(rows: list[dict[str, Any]], fieldnames: tuple[str, ...]) -> list[dict[str, Any]]:
+    return [_csv_row(row, fieldnames) for row in rows]
+
+
+def _csv_row(row: dict[str, Any], fieldnames: tuple[str, ...]) -> dict[str, Any]:
+    return {fieldname: _csv_value(row.get(fieldname)) for fieldname in fieldnames}
+
+
+def _csv_value(value: Any) -> Any:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, float):
+        return f"{value:.{FLOAT_SIGNIFICANT_DIGITS}g}"
+    return value

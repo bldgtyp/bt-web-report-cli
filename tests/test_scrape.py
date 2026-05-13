@@ -11,7 +11,6 @@ from openpyxl import Workbook
 from bt_web_report_cli.__main__ import main
 from bt_web_report_cli.phpp.write import REPORT_CSV_TABLES
 
-
 FIXTURE_DIR = Path(os.environ.get("BTWR_TEST_PHPP_DIR", Path(__file__).resolve().parents[2] / "test-files" / "phpp"))
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
 VANDAM_FIXTURE = FIXTURE_DIR / "2606-29-Vandam-St-260506.xlsx"
@@ -65,7 +64,7 @@ def test_scrape_fixture_writes_manifest_and_variants_csv(scraped_vandam: ScrapeO
     assert len(tfa) == 5
     assert tfa[0]["variant_id"] == "code_minimum"
     assert tfa[0]["units"] == "m2"
-    assert float(tfa[0]["value"]) == 290.2644471258237
+    assert float(tfa[0]["value"]) == pytest.approx(290.2644471258237)
 
     climate_rows = list(csv.DictReader((output_dir / "climate-monthly.csv").open()))
     assert len(climate_rows) == 96

@@ -2,78 +2,78 @@ month,metric,orientation,units,value,source_label,excel_row
 jan,exterior_temperature,,degF,31.82,Exterior temperature,26
 feb,exterior_temperature,,degF,33.08,Exterior temperature,26
 mar,exterior_temperature,,degF,41.54,Exterior temperature,26
-apr,exterior_temperature,,degF,48.019999999999996,Exterior temperature,26
-may,exterior_temperature,,degF,57.379999999999995,Exterior temperature,26
+apr,exterior_temperature,,degF,48.02,Exterior temperature,26
+may,exterior_temperature,,degF,57.38,Exterior temperature,26
 jun,exterior_temperature,,degF,68.18,Exterior temperature,26
 jul,exterior_temperature,,degF,74.48,Exterior temperature,26
 aug,exterior_temperature,,degF,72.14,Exterior temperature,26
-sep,exterior_temperature,,degF,64.03999999999999,Exterior temperature,26
-oct,exterior_temperature,,degF,50.900000000000006,Exterior temperature,26
+sep,exterior_temperature,,degF,64.04,Exterior temperature,26
+oct,exterior_temperature,,degF,50.9,Exterior temperature,26
 nov,exterior_temperature,,degF,39.92,Exterior temperature,26
 dec,exterior_temperature,,degF,31.46,Exterior temperature,26
-jan,solar_radiation,north,kWh/ft2,1.4864486395456271,Radiation North,27
-feb,solar_radiation,north,kWh/ft2,1.7651577594604322,Radiation North,27
-mar,solar_radiation,north,kWh/ft2,2.6012851192048476,Radiation North,27
-apr,solar_radiation,north,kWh/ft2,3.2516063990060595,Radiation North,27
-may,solar_radiation,north,kWh/ft2,4.459345918636881,Radiation North,27
-jun,solar_radiation,north,kWh/ft2,5.388376318352898,Radiation North,27
-jul,solar_radiation,north,kWh/ft2,5.1096671984380935,Radiation North,27
-aug,solar_radiation,north,kWh/ft2,3.5303155189208644,Radiation North,27
-sep,solar_radiation,north,kWh/ft2,2.694188159176449,Radiation North,27
-oct,solar_radiation,north,kWh/ft2,2.136769919346839,Radiation North,27
-nov,solar_radiation,north,kWh/ft2,1.5793516795172289,Radiation North,27
-dec,solar_radiation,north,kWh/ft2,1.3006425596024238,Radiation North,27
-jan,solar_radiation,east,kWh/ft2,5.016764158466492,Radiation East,28
-feb,solar_radiation,east,kWh/ft2,5.667085438267703,Radiation East,28
-mar,solar_radiation,east,kWh/ft2,8.639982717358958,Radiation East,28
-apr,solar_radiation,east,kWh/ft2,8.732885757330559,Radiation East,28
-may,solar_radiation,east,kWh/ft2,10.962558716649,Radiation East,28
-jun,solar_radiation,east,kWh/ft2,11.798686076393416,Radiation East,28
-jul,solar_radiation,east,kWh/ft2,12.07739519630822,Radiation East,28
-aug,solar_radiation,east,kWh/ft2,10.219334396876187,Radiation East,28
-sep,solar_radiation,east,kWh/ft2,9.383207037131772,Radiation East,28
-oct,solar_radiation,east,kWh/ft2,6.689018877955322,Radiation East,28
-nov,solar_radiation,east,kWh/ft2,4.92386111849489,Radiation East,28
-dec,solar_radiation,east,kWh/ft2,4.180636798722076,Radiation East,28
-jan,solar_radiation,south,kWh/ft2,13.65674687582545,Radiation South,29
-feb,solar_radiation,south,kWh/ft2,11.798686076393416,Radiation South,29
-mar,solar_radiation,south,kWh/ft2,13.099328635995839,Radiation South,29
-apr,solar_radiation,south,kWh/ft2,8.825788797302161,Radiation South,29
-may,solar_radiation,south,kWh/ft2,8.454176637415754,Radiation South,29
-jun,solar_radiation,south,kWh/ft2,7.896758397586144,Radiation South,29
-jul,solar_radiation,south,kWh/ft2,8.082564477529347,Radiation South,29
-aug,solar_radiation,south,kWh/ft2,9.476110077103373,Radiation South,29
-sep,solar_radiation,south,kWh/ft2,11.798686076393416,Radiation South,29
-oct,solar_radiation,south,kWh/ft2,12.820619516081035,Radiation South,29
-nov,solar_radiation,south,kWh/ft2,11.612879996450213,Radiation South,29
-dec,solar_radiation,south,kWh/ft2,12.263201276251424,Radiation South,29
-jan,solar_radiation,west,kWh/ft2,5.202570238409695,Radiation West,30
-feb,solar_radiation,west,kWh/ft2,5.759988478239305,Radiation West,30
-mar,solar_radiation,west,kWh/ft2,8.454176637415754,Radiation West,30
-apr,solar_radiation,west,kWh/ft2,7.9896614375577455,Radiation West,30
-may,solar_radiation,west,kWh/ft2,10.498043516790991,Radiation West,30
-jun,solar_radiation,west,kWh/ft2,11.334170876535406,Radiation West,30
-jul,solar_radiation,west,kWh/ft2,10.962558716649,Radiation West,30
-aug,solar_radiation,west,kWh/ft2,10.033528316932983,Radiation West,30
-sep,solar_radiation,west,kWh/ft2,9.104497917216966,Radiation West,30
-oct,solar_radiation,west,kWh/ft2,7.246437117784932,Radiation West,30
-nov,solar_radiation,west,kWh/ft2,4.92386111849489,Radiation West,30
-dec,solar_radiation,west,kWh/ft2,4.459345918636881,Radiation West,30
-jan,solar_radiation,horizontal,kWh/ft2,7.246437117784932,Horizontal radiation,31
-feb,solar_radiation,horizontal,kWh/ft2,8.454176637415754,Horizontal radiation,31
-mar,solar_radiation,horizontal,kWh/ft2,13.470940795882246,Horizontal radiation,31
-apr,solar_radiation,horizontal,kWh/ft2,13.842552955768653,Horizontal radiation,31
-may,solar_radiation,horizontal,kWh/ft2,18.11609279446233,Horizontal radiation,31
-jun,solar_radiation,horizontal,kWh/ft2,19.88125055392276,Horizontal radiation,31
-jul,solar_radiation,horizontal,kWh/ft2,19.23092927412155,Horizontal radiation,31
-aug,solar_radiation,horizontal,kWh/ft2,17.09415935477471,Horizontal radiation,31
-sep,solar_radiation,horizontal,kWh/ft2,14.307068155626661,Horizontal radiation,31
-oct,solar_radiation,horizontal,kWh/ft2,10.590946556762594,Horizontal radiation,31
-nov,solar_radiation,horizontal,kWh/ft2,7.060631037841729,Horizontal radiation,31
-dec,solar_radiation,horizontal,kWh/ft2,6.131600638125712,Horizontal radiation,31
-jan,dew_point_temperature,,degF,15.259999999999998,Dew point temperature,32
-feb,dew_point_temperature,,degF,15.620000000000001,Dew point temperature,32
-mar,dew_point_temperature,,degF,20.299999999999997,Dew point temperature,32
+jan,solar_radiation,north,kWh/ft2,1.48644863955,Radiation North,27
+feb,solar_radiation,north,kWh/ft2,1.76515775946,Radiation North,27
+mar,solar_radiation,north,kWh/ft2,2.6012851192,Radiation North,27
+apr,solar_radiation,north,kWh/ft2,3.25160639901,Radiation North,27
+may,solar_radiation,north,kWh/ft2,4.45934591864,Radiation North,27
+jun,solar_radiation,north,kWh/ft2,5.38837631835,Radiation North,27
+jul,solar_radiation,north,kWh/ft2,5.10966719844,Radiation North,27
+aug,solar_radiation,north,kWh/ft2,3.53031551892,Radiation North,27
+sep,solar_radiation,north,kWh/ft2,2.69418815918,Radiation North,27
+oct,solar_radiation,north,kWh/ft2,2.13676991935,Radiation North,27
+nov,solar_radiation,north,kWh/ft2,1.57935167952,Radiation North,27
+dec,solar_radiation,north,kWh/ft2,1.3006425596,Radiation North,27
+jan,solar_radiation,east,kWh/ft2,5.01676415847,Radiation East,28
+feb,solar_radiation,east,kWh/ft2,5.66708543827,Radiation East,28
+mar,solar_radiation,east,kWh/ft2,8.63998271736,Radiation East,28
+apr,solar_radiation,east,kWh/ft2,8.73288575733,Radiation East,28
+may,solar_radiation,east,kWh/ft2,10.9625587166,Radiation East,28
+jun,solar_radiation,east,kWh/ft2,11.7986860764,Radiation East,28
+jul,solar_radiation,east,kWh/ft2,12.0773951963,Radiation East,28
+aug,solar_radiation,east,kWh/ft2,10.2193343969,Radiation East,28
+sep,solar_radiation,east,kWh/ft2,9.38320703713,Radiation East,28
+oct,solar_radiation,east,kWh/ft2,6.68901887796,Radiation East,28
+nov,solar_radiation,east,kWh/ft2,4.92386111849,Radiation East,28
+dec,solar_radiation,east,kWh/ft2,4.18063679872,Radiation East,28
+jan,solar_radiation,south,kWh/ft2,13.6567468758,Radiation South,29
+feb,solar_radiation,south,kWh/ft2,11.7986860764,Radiation South,29
+mar,solar_radiation,south,kWh/ft2,13.099328636,Radiation South,29
+apr,solar_radiation,south,kWh/ft2,8.8257887973,Radiation South,29
+may,solar_radiation,south,kWh/ft2,8.45417663742,Radiation South,29
+jun,solar_radiation,south,kWh/ft2,7.89675839759,Radiation South,29
+jul,solar_radiation,south,kWh/ft2,8.08256447753,Radiation South,29
+aug,solar_radiation,south,kWh/ft2,9.4761100771,Radiation South,29
+sep,solar_radiation,south,kWh/ft2,11.7986860764,Radiation South,29
+oct,solar_radiation,south,kWh/ft2,12.8206195161,Radiation South,29
+nov,solar_radiation,south,kWh/ft2,11.6128799965,Radiation South,29
+dec,solar_radiation,south,kWh/ft2,12.2632012763,Radiation South,29
+jan,solar_radiation,west,kWh/ft2,5.20257023841,Radiation West,30
+feb,solar_radiation,west,kWh/ft2,5.75998847824,Radiation West,30
+mar,solar_radiation,west,kWh/ft2,8.45417663742,Radiation West,30
+apr,solar_radiation,west,kWh/ft2,7.98966143756,Radiation West,30
+may,solar_radiation,west,kWh/ft2,10.4980435168,Radiation West,30
+jun,solar_radiation,west,kWh/ft2,11.3341708765,Radiation West,30
+jul,solar_radiation,west,kWh/ft2,10.9625587166,Radiation West,30
+aug,solar_radiation,west,kWh/ft2,10.0335283169,Radiation West,30
+sep,solar_radiation,west,kWh/ft2,9.10449791722,Radiation West,30
+oct,solar_radiation,west,kWh/ft2,7.24643711778,Radiation West,30
+nov,solar_radiation,west,kWh/ft2,4.92386111849,Radiation West,30
+dec,solar_radiation,west,kWh/ft2,4.45934591864,Radiation West,30
+jan,solar_radiation,horizontal,kWh/ft2,7.24643711778,Horizontal radiation,31
+feb,solar_radiation,horizontal,kWh/ft2,8.45417663742,Horizontal radiation,31
+mar,solar_radiation,horizontal,kWh/ft2,13.4709407959,Horizontal radiation,31
+apr,solar_radiation,horizontal,kWh/ft2,13.8425529558,Horizontal radiation,31
+may,solar_radiation,horizontal,kWh/ft2,18.1160927945,Horizontal radiation,31
+jun,solar_radiation,horizontal,kWh/ft2,19.8812505539,Horizontal radiation,31
+jul,solar_radiation,horizontal,kWh/ft2,19.2309292741,Horizontal radiation,31
+aug,solar_radiation,horizontal,kWh/ft2,17.0941593548,Horizontal radiation,31
+sep,solar_radiation,horizontal,kWh/ft2,14.3070681556,Horizontal radiation,31
+oct,solar_radiation,horizontal,kWh/ft2,10.5909465568,Horizontal radiation,31
+nov,solar_radiation,horizontal,kWh/ft2,7.06063103784,Horizontal radiation,31
+dec,solar_radiation,horizontal,kWh/ft2,6.13160063813,Horizontal radiation,31
+jan,dew_point_temperature,,degF,15.26,Dew point temperature,32
+feb,dew_point_temperature,,degF,15.62,Dew point temperature,32
+mar,dew_point_temperature,,degF,20.3,Dew point temperature,32
 apr,dew_point_temperature,,degF,27.14,Dew point temperature,32
 may,dew_point_temperature,,degF,36.86,Dew point temperature,32
 jun,dew_point_temperature,,degF,43.34,Dew point temperature,32
@@ -81,17 +81,17 @@ jul,dew_point_temperature,,degF,48.74,Dew point temperature,32
 aug,dew_point_temperature,,degF,47.3,Dew point temperature,32
 sep,dew_point_temperature,,degF,39.2,Dew point temperature,32
 oct,dew_point_temperature,,degF,29.48,Dew point temperature,32
-nov,dew_point_temperature,,degF,20.299999999999997,Dew point temperature,32
+nov,dew_point_temperature,,degF,20.3,Dew point temperature,32
 dec,dew_point_temperature,,degF,14.36,Dew point temperature,32
-jan,sky_temperature,,degF,-6.519999999999996,Sky temperature,33
-feb,sky_temperature,,degF,-4.899999999999999,Sky temperature,33
-mar,sky_temperature,,degF,2.4800000000000004,Sky temperature,33
-apr,sky_temperature,,degF,12.379999999999999,Sky temperature,33
+jan,sky_temperature,,degF,-6.52,Sky temperature,33
+feb,sky_temperature,,degF,-4.9,Sky temperature,33
+mar,sky_temperature,,degF,2.48,Sky temperature,33
+apr,sky_temperature,,degF,12.38,Sky temperature,33
 may,sky_temperature,,degF,23.9,Sky temperature,33
 jun,sky_temperature,,degF,32.36,Sky temperature,33
 jul,sky_temperature,,degF,39.92,Sky temperature,33
 aug,sky_temperature,,degF,37.94,Sky temperature,33
 sep,sky_temperature,,degF,27.32,Sky temperature,33
-oct,sky_temperature,,degF,14.719999999999999,Sky temperature,33
-nov,sky_temperature,,degF,2.1199999999999974,Sky temperature,33
-dec,sky_temperature,,degF,-6.880000000000003,Sky temperature,33
+oct,sky_temperature,,degF,14.72,Sky temperature,33
+nov,sky_temperature,,degF,2.12,Sky temperature,33
+dec,sky_temperature,,degF,-6.88,Sky temperature,33
