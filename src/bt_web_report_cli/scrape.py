@@ -49,8 +49,13 @@ def scrape_project(
         for column in variant_columns
     )
     rows = reader.read_variants(schema, variant_columns)
+    climate_rows = reader.read_climate_monthly(schema)
+    room_airflow_rows = reader.read_room_airflows(schema)
     if not rows:
         msg = f"No variant data found in workbook: {workbook_path}"
+        raise ValueError(msg)
+    if not climate_rows:
+        msg = f"No monthly climate data found in workbook: {workbook_path}"
         raise ValueError(msg)
 
     recommended_variant = variants[-1]
@@ -63,7 +68,7 @@ def scrape_project(
         source_workbook=_fingerprint(workbook_path),
     )
 
-    write_report_data(output_dir or default_output_dir(project_path), manifest, rows)
+    write_report_data(output_dir or default_output_dir(project_path), manifest, rows, climate_rows, room_airflow_rows)
     return manifest
 
 

@@ -25,8 +25,41 @@ VARIANTS_FIELDNAMES = (
     "excel_row",
 )
 
+CLIMATE_MONTHLY_FIELDNAMES = (
+    "month",
+    "metric",
+    "orientation",
+    "units",
+    "value",
+    "source_label",
+    "excel_row",
+)
 
-def write_report_data(output_dir: Path, manifest: BaseModel, variants_rows: list[dict[str, Any]]) -> None:
+ROOM_AIRFLOWS_FIELDNAMES = (
+    "row_type",
+    "room_name",
+    "amount",
+    "allocation_to_vent_unit",
+    "room_area_ft2",
+    "room_volume_ft3",
+    "room_height_ft",
+    "v_sup_high_cfm",
+    "v_eta_high_cfm",
+    "v_sup_med_cfm",
+    "v_eta_med_cfm",
+    "v_sup_low_cfm",
+    "v_eta_low_cfm",
+    "excel_row",
+)
+
+
+def write_report_data(
+    output_dir: Path,
+    manifest: BaseModel,
+    variants_rows: list[dict[str, Any]],
+    climate_monthly_rows: list[dict[str, Any]],
+    room_airflow_rows: list[dict[str, Any]],
+) -> None:
     """Write manifest and CSV data through an atomic directory replacement."""
 
     output_dir = output_dir.expanduser().resolve()
@@ -36,7 +69,9 @@ def write_report_data(output_dir: Path, manifest: BaseModel, variants_rows: list
 
     try:
         _write_json(temp_dir / "manifest.json", manifest)
-        _write_csv(temp_dir / "variants.csv", variants_rows)
+        _write_csv(temp_dir / "variants.csv", variants_rows, VARIANTS_FIELDNAMES)
+        _write_csv(temp_dir / "climate-monthly.csv", climate_monthly_rows, CLIMATE_MONTHLY_FIELDNAMES)
+        _write_csv(temp_dir / "room-airflows.csv", room_airflow_rows, ROOM_AIRFLOWS_FIELDNAMES)
         if backup_dir.exists():
             shutil.rmtree(backup_dir)
         if output_dir.exists():
@@ -56,8 +91,8 @@ def _write_json(path: Path, manifest: BaseModel) -> None:
     path.write_text(manifest.model_dump_json(indent=2) + "\n")
 
 
-def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
+def _write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: tuple[str, ...]) -> None:
     with path.open("w", newline="") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=VARIANTS_FIELDNAMES)
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)

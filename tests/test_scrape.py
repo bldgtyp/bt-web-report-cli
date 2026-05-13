@@ -41,6 +41,20 @@ def test_scrape_fixture_writes_manifest_and_variants_csv(tmp_path: Path) -> None
     assert tfa[0]["units"] == "m2"
     assert float(tfa[0]["value"]) == 290.2644471258237
 
+    climate_rows = list(csv.DictReader((output_dir / "climate-monthly.csv").open()))
+    assert len(climate_rows) == 96
+    jan_exterior = [row for row in climate_rows if row["month"] == "jan" and row["metric"] == "exterior_temperature"][0]
+    assert jan_exterior["units"] == "degF"
+    assert float(jan_exterior["value"]) == 32.54
+    jan_north = [row for row in climate_rows if row["month"] == "jan" and row["orientation"] == "north"][0]
+    assert jan_north["units"] == "kWh/ft2"
+    assert round(float(jan_north["value"]), 6) == round(16 / 10.76391042, 6)
+
+    airflow_rows = list(csv.DictReader((output_dir / "room-airflows.csv").open()))
+    assert airflow_rows[-1]["row_type"] == "total"
+    assert airflow_rows[-1]["room_name"] == "Totals"
+    assert any(row["room_name"] == "104-KITCHEN" for row in airflow_rows)
+
 
 def test_scrape_linde_fixture_uses_dynamic_r_value_labels(tmp_path: Path) -> None:
     output_dir = tmp_path / "data"
@@ -63,6 +77,12 @@ def test_scrape_linde_fixture_uses_dynamic_r_value_labels(tmp_path: Path) -> Non
     assert "01ud-c-W-CS - Crawlspace" in r_value_labels
     assert "06ud-g-R-FL - Flat" in r_value_labels
     assert "02ud-" not in r_value_labels
+
+    airflow_rows = list(csv.DictReader((output_dir / "room-airflows.csv").open()))
+    assert len([row for row in airflow_rows if row["row_type"] == "room"]) == 28
+    assert airflow_rows[-1]["room_name"] == "Totals"
+    assert any(row["room_name"] == "113-BATH" for row in airflow_rows)
+    assert any(row["room_name"] == "Kitchen Extract Hood - ON" for row in airflow_rows)
 
 
 def test_scrape_unknown_version_fails_loudly(tmp_path: Path) -> None:
