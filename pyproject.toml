@@ -43,6 +43,7 @@ include = ["bt_web_report_cli*"]
 
 [tool.black]
 line-length = 120
+target-version = ["py311"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "../bt-web-report-schemas/src"]
