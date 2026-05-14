@@ -15,6 +15,7 @@ import yaml
 APP_SUPPORT_ENV = "BTWR_APP_SUPPORT"
 MANAGER_APP_SUPPORT_ENV = "BTWR_MANAGER_APP_SUPPORT"
 RENDERER_SOURCE_ENV = "BTWR_RENDERER_SOURCE"
+TINA_CONTENT_ROOT_ENV = "BTWR_TINA_CONTENT_ROOT"
 
 APP_SUPPORT_DEFAULT = Path("~/Library/Application Support/bt-web-report-manager").expanduser()
 RENDERER_PAYLOAD = (
@@ -28,6 +29,7 @@ RENDERER_PAYLOAD = (
     "tina",
     "tsconfig.json",
 )
+LOCAL_RENDERER_PAYLOAD = {"tina"}
 PROJECT_PAYLOAD = ("project.yaml", "content", "data", "public")
 IGNORED_RENDERER_NAMES = {
     ".astro",
@@ -146,7 +148,11 @@ def prepare_runtime_workspace(
     for name in RENDERER_PAYLOAD:
         source = renderer / name
         if source.exists():
-            _symlink(source, workspace / name)
+            destination = workspace / name
+            if name in LOCAL_RENDERER_PAYLOAD and source.is_dir():
+                shutil.copytree(source, destination, ignore=shutil.ignore_patterns(*IGNORED_RENDERER_NAMES))
+            else:
+                _symlink(source, destination)
 
     node_modules = renderer / "node_modules"
     if node_modules.exists():
@@ -178,7 +184,9 @@ def run_renderer_script(
         pnpm_executable=pnpm_executable,
         install=install,
     )
-    result = subprocess.run((pnpm_executable, script), cwd=workspace.workspace_path, text=True, check=False)
+    env = os.environ.copy()
+    env[TINA_CONTENT_ROOT_ENV] = os.path.relpath(workspace.project_path, workspace.workspace_path / "tina")
+    result = subprocess.run((pnpm_executable, script), cwd=workspace.workspace_path, env=env, text=True, check=False)
     if result.returncode != 0:
         raise RuntimeError(f"Renderer script '{script}' failed with exit {result.returncode}.")
     return workspace

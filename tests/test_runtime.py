@@ -1,9 +1,11 @@
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from bt_web_report_cli.new_project import create_project
-from bt_web_report_cli.runtime import prepare_runtime_workspace
+from bt_web_report_cli.runtime import TINA_CONTENT_ROOT_ENV, prepare_runtime_workspace, run_renderer_script
 
 
 def test_prepare_runtime_workspace_keeps_node_dependencies_outside_project(tmp_path: Path) -> None:
@@ -22,9 +24,45 @@ def test_prepare_runtime_workspace_keeps_node_dependencies_outside_project(tmp_p
     assert workspace.renderer_path == app_support / "renderer" / "current"
     assert workspace.workspace_path == app_support / "builds" / "sample"
     assert (workspace.workspace_path / "package.json").is_symlink()
+    assert not (workspace.workspace_path / "tina").is_symlink()
+    assert (workspace.workspace_path / "tina" / "__generated__" / "_lookup.json").exists()
     assert (workspace.workspace_path / "content").resolve() == (project / "content").resolve()
     assert not (project / "node_modules").exists()
     assert not (project / "package.json").exists()
+
+
+def test_run_renderer_script_points_tina_at_project_content(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    renderer = _make_renderer(tmp_path / "renderer")
+    project = _make_project(tmp_path / "Project" / "04_Web")
+    app_support = tmp_path / "support"
+    calls: list[dict[str, object]] = []
+
+    def fake_run(
+        args: tuple[str, str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        text: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append({"args": args, "cwd": cwd, "env": env, "text": text, "check": check})
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr("bt_web_report_cli.runtime.subprocess.run", fake_run)
+
+    workspace = run_renderer_script(
+        project,
+        "dev:editor",
+        kind="preview",
+        renderer_source=renderer,
+        base_dir=app_support,
+        install=False,
+    )
+
+    assert calls[0]["cwd"] == workspace.workspace_path
+    env = calls[0]["env"]
+    assert isinstance(env, dict)
+    assert env[TINA_CONTENT_ROOT_ENV] == os.path.relpath(project.resolve(), workspace.workspace_path / "tina")
 
 
 def test_create_project_copies_only_content_payload(tmp_path: Path) -> None:
@@ -114,7 +152,8 @@ def _make_renderer(path: Path) -> Path:
     (path / "tsconfig.json").write_text("{}\n")
     (path / "src").mkdir()
     (path / "scripts").mkdir()
-    (path / "tina").mkdir()
+    (path / "tina" / "__generated__").mkdir(parents=True)
+    (path / "tina" / "__generated__" / "_lookup.json").write_text("{}\n")
     (path / "node_modules").mkdir()
     _write_project_payload(path)
     return path
