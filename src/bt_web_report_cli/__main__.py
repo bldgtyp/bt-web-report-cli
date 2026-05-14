@@ -81,6 +81,7 @@ def scrape(
 @click.option("--phpp", type=click.Path(path_type=Path), help="Optional PHPP workbook path.")
 @click.option("--renderer-source", type=click.Path(exists=True, file_okay=False, path_type=Path))
 @click.option("--no-git", is_flag=True, help="Create files without git init.")
+@click.option("--overwrite", is_flag=True, help="Replace existing 04_Web contents after explicit confirmation.")
 def new(
     target_web_path: Path,
     slug: str,
@@ -93,6 +94,7 @@ def new(
     phpp: Path | None,
     renderer_source: Path | None,
     no_git: bool,
+    overwrite: bool,
 ) -> None:
     """Create a content-only report repo in 04_Web."""
 
@@ -109,6 +111,7 @@ def new(
             phpp=phpp,
             renderer_source=renderer_source,
             init_git=not no_git,
+            overwrite=overwrite,
         )
     except Exception as exc:
         raise click.ClickException(str(exc)) from exc

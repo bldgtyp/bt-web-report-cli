@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from bt_web_report_cli.new_project import create_project
 from bt_web_report_cli.runtime import prepare_runtime_workspace
 
@@ -50,6 +52,58 @@ def test_create_project_copies_only_content_payload(tmp_path: Path) -> None:
     assert not (target / "src").exists()
     assert not (target / "node_modules").exists()
     assert "phpp_path: ../07_PHPP/model.xlsx" in (target / "project.yaml").read_text()
+
+
+def test_create_project_ignores_ds_store_in_existing_target(tmp_path: Path) -> None:
+    renderer = _make_renderer(tmp_path / "renderer")
+    target = tmp_path / "Project" / "04_Web"
+    target.mkdir(parents=True)
+    (target / ".DS_Store").write_text("finder")
+
+    create_project(
+        target,
+        slug="project-2606",
+        title="Project",
+        repo="bt-proj-project-2606",
+        production_url="https://project-2606.bldgtyp.com",
+        renderer_source=renderer,
+        init_git=False,
+    )
+
+    assert (target / "project.yaml").exists()
+    assert (target / ".DS_Store").exists()
+
+
+def test_create_project_requires_overwrite_for_real_existing_content(tmp_path: Path) -> None:
+    renderer = _make_renderer(tmp_path / "renderer")
+    target = tmp_path / "Project" / "04_Web"
+    target.mkdir(parents=True)
+    (target / "old.md").write_text("old")
+
+    with pytest.raises(RuntimeError, match="not empty"):
+        create_project(
+            target,
+            slug="project-2606",
+            title="Project",
+            repo="bt-proj-project-2606",
+            production_url="https://project-2606.bldgtyp.com",
+            renderer_source=renderer,
+            init_git=False,
+        )
+
+    create_project(
+        target,
+        slug="project-2606",
+        title="Project",
+        repo="bt-proj-project-2606",
+        production_url="https://project-2606.bldgtyp.com",
+        renderer_source=renderer,
+        init_git=False,
+        overwrite=True,
+    )
+
+    assert not (target / "old.md").exists()
+    assert (target / "project.yaml").exists()
 
 
 def _make_renderer(path: Path) -> Path:

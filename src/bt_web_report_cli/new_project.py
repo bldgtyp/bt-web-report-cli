@@ -13,6 +13,7 @@ import yaml
 from bt_web_report_cli.runtime import resolve_renderer_source
 
 CONTENT_PAYLOAD = ("content", "data", "public", ".github", ".gitignore", ".dropboxignore", ".editorconfig", "README.md")
+IGNORED_EXISTING_NAMES = {".DS_Store", ".localized", "Icon\r", "desktop.ini", "Thumbs.db"}
 
 
 def create_project(
@@ -28,12 +29,18 @@ def create_project(
     phpp: Path | None = None,
     renderer_source: Path | None = None,
     init_git: bool = True,
+    overwrite: bool = False,
 ) -> Path:
     """Create a content-only `04_Web` folder from the shared template payload."""
 
     target = target_web_path.expanduser().resolve()
-    if target.exists() and any(target.iterdir()):
-        raise RuntimeError(f"Target folder already exists and is not empty: {target}")
+    existing_items = meaningful_existing_items(target)
+    if existing_items and not overwrite:
+        item_list = ", ".join(item.name for item in existing_items[:5])
+        suffix = "" if len(existing_items) <= 5 else f", and {len(existing_items) - 5} more"
+        raise RuntimeError(f"Target folder already exists and is not empty: {target} ({item_list}{suffix})")
+    if existing_items and overwrite:
+        _clear_target(target)
     target.mkdir(parents=True, exist_ok=True)
 
     source = resolve_renderer_source(renderer_source)
@@ -65,6 +72,20 @@ def create_project(
     if init_git:
         _init_git(target)
     return target
+
+
+def meaningful_existing_items(target: Path) -> list[Path]:
+    if not target.exists():
+        return []
+    return [item for item in target.iterdir() if item.name not in IGNORED_EXISTING_NAMES]
+
+
+def _clear_target(target: Path) -> None:
+    for item in target.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
 
 
 def _write_project_yaml(
