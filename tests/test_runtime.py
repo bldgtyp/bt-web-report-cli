@@ -24,8 +24,10 @@ def test_prepare_runtime_workspace_keeps_node_dependencies_outside_project(tmp_p
     assert workspace.renderer_path == app_support / "renderer" / "current"
     assert workspace.workspace_path == app_support / "builds" / "sample"
     assert (workspace.workspace_path / "package.json").is_symlink()
+    assert not (workspace.workspace_path / "src").is_symlink()
     assert not (workspace.workspace_path / "tina").is_symlink()
     assert (workspace.workspace_path / "tina" / "__generated__" / "_lookup.json").exists()
+    assert (workspace.workspace_path / "src" / "pages" / "index.astro").exists()
     assert (workspace.workspace_path / "content").resolve() == (project / "content").resolve()
     assert not (project / "node_modules").exists()
     assert not (project / "package.json").exists()
@@ -151,6 +153,8 @@ def _make_renderer(path: Path) -> Path:
     (path / "astro.config.mjs").write_text("export default {};\n")
     (path / "tsconfig.json").write_text("{}\n")
     (path / "src").mkdir()
+    (path / "src" / "pages").mkdir()
+    (path / "src" / "pages" / "index.astro").write_text("---\n---\n")
     (path / "scripts").mkdir()
     (path / "tina" / "__generated__").mkdir(parents=True)
     (path / "tina" / "__generated__" / "_lookup.json").write_text("{}\n")

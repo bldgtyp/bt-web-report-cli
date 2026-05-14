@@ -29,7 +29,7 @@ RENDERER_PAYLOAD = (
     "tina",
     "tsconfig.json",
 )
-LOCAL_RENDERER_PAYLOAD = {"tina"}
+LOCAL_RENDERER_PAYLOAD = {"src", "tina"}
 PROJECT_PAYLOAD = ("project.yaml", "content", "data", "public")
 IGNORED_RENDERER_NAMES = {
     ".astro",
