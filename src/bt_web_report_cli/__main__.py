@@ -71,10 +71,10 @@ def scrape(
 
 @main.command()
 @click.argument("target_web_path", type=click.Path(path_type=Path))
-@click.option("--slug", required=True, help="Project slug, for example 2606-vandam.")
+@click.option("--slug", required=True, help="Project slug, for example project-2606.")
 @click.option("--title", required=True, help="Client-visible project title.")
 @click.option("--repo", required=True, help="GitHub repo name, normally bt-proj-<slug>.")
-@click.option("--production-url", required=True, help="Production URL, for example https://2606-vandam.bldgtyp.com.")
+@click.option("--production-url", required=True, help="Production URL, for example https://project-2606.bldgtyp.com.")
 @click.option("--client", help="Client name.")
 @click.option("--building", help="Building name.")
 @click.option("--phase", help="Project phase.")
