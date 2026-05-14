@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from bt_web_report_cli.new_project import create_project
+from bt_web_report_cli.new_project import create_project, publish_project
 from bt_web_report_cli.runtime import TINA_CONTENT_ROOT_ENV, prepare_runtime_workspace, run_renderer_script
 
 
@@ -76,10 +76,10 @@ def test_create_project_copies_only_content_payload(tmp_path: Path) -> None:
 
     create_project(
         target,
-        slug="2606-vandam",
+        slug="project-2606",
         title="2606 Vandam",
         repo="bt-proj-2606-vandam",
-        production_url="https://2606-vandam.bldgtyp.com",
+        production_url="https://project-2606.bldgtyp.com",
         phpp=phpp,
         renderer_source=renderer,
         init_git=False,
@@ -104,7 +104,7 @@ def test_create_project_ignores_ds_store_in_existing_target(tmp_path: Path) -> N
         target,
         slug="project-2606",
         title="Project",
-        repo="bt-proj-project-2606",
+        repo="bt-proj-2606-vandam",
         production_url="https://project-2606.bldgtyp.com",
         renderer_source=renderer,
         init_git=False,
@@ -125,7 +125,7 @@ def test_create_project_requires_overwrite_for_real_existing_content(tmp_path: P
             target,
             slug="project-2606",
             title="Project",
-            repo="bt-proj-project-2606",
+            repo="bt-proj-2606-vandam",
             production_url="https://project-2606.bldgtyp.com",
             renderer_source=renderer,
             init_git=False,
@@ -135,7 +135,7 @@ def test_create_project_requires_overwrite_for_real_existing_content(tmp_path: P
         target,
         slug="project-2606",
         title="Project",
-        repo="bt-proj-project-2606",
+        repo="bt-proj-2606-vandam",
         production_url="https://project-2606.bldgtyp.com",
         renderer_source=renderer,
         init_git=False,
@@ -144,6 +144,100 @@ def test_create_project_requires_overwrite_for_real_existing_content(tmp_path: P
 
     assert not (target / "old.md").exists()
     assert (target / "project.yaml").exists()
+
+
+def test_publish_project_creates_private_repo_sets_origin_commits_and_pushes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "Project" / "04_Web"
+    target.mkdir(parents=True)
+    calls: list[tuple[tuple[str, ...], Path | None]] = []
+
+    def fake_run(
+        args: tuple[str, ...],
+        *,
+        cwd: Path | None = None,
+        text: bool,
+        capture_output: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        command = tuple(args)
+        calls.append((command, cwd))
+        if command[:3] == ("gh-test", "repo", "view"):
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="not found")
+        if command[:4] == ("git-test", "remote", "get-url", "origin"):
+            return subprocess.CompletedProcess(command, 2, stdout="", stderr="no origin")
+        if command[:4] == ("git-test", "diff", "--cached", "--quiet"):
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("bt_web_report_cli.new_project.subprocess.run", fake_run)
+
+    result = publish_project(
+        target,
+        repo_owner="bldgtyp-projects",
+        repo_name="bt-proj-2606-vandam",
+        commit_message="Initial commit project-2606 report",
+        git_executable="git-test",
+        gh_executable="gh-test",
+    )
+
+    commands = [command for command, _cwd in calls]
+    assert result.repo_full_name == "bldgtyp-projects/bt-proj-2606-vandam"
+    assert result.remote_url == "https://github.com/bldgtyp-projects/bt-proj-2606-vandam.git"
+    assert result.committed is True
+    assert ("gh-test", "repo", "create", "bldgtyp-projects/bt-proj-2606-vandam", "--private") in commands
+    assert (
+        "git-test",
+        "remote",
+        "add",
+        "origin",
+        "https://github.com/bldgtyp-projects/bt-proj-2606-vandam.git",
+    ) in commands
+    assert ("git-test", "commit", "-m", "Initial commit project-2606 report") in commands
+    assert ("git-test", "push", "-u", "origin", "HEAD:main") in commands
+
+
+def test_publish_project_reuses_existing_repo_remote_and_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "Project" / "04_Web"
+    target.mkdir(parents=True)
+    (target / ".git").mkdir()
+    calls: list[tuple[str, ...]] = []
+    remote_url = "https://github.com/bldgtyp-projects/bt-proj-2606-vandam.git"
+
+    def fake_run(
+        args: tuple[str, ...],
+        *,
+        cwd: Path | None = None,
+        text: bool,
+        capture_output: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        command = tuple(args)
+        calls.append(command)
+        if command[:3] == ("gh-test", "repo", "view"):
+            return subprocess.CompletedProcess(command, 0, stdout='{"name":"bt-proj-2606-vandam"}\n', stderr="")
+        if command[:4] == ("git-test", "remote", "get-url", "origin"):
+            return subprocess.CompletedProcess(command, 0, stdout=f"{remote_url}\n", stderr="")
+        if command[:4] == ("git-test", "diff", "--cached", "--quiet"):
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("bt_web_report_cli.new_project.subprocess.run", fake_run)
+
+    result = publish_project(
+        target,
+        repo_owner="bldgtyp-projects",
+        repo_name="bt-proj-2606-vandam",
+        commit_message="Initial commit project-2606 report",
+        git_executable="git-test",
+        gh_executable="gh-test",
+    )
+
+    assert result.committed is False
+    assert ("gh-test", "repo", "create", "bldgtyp-projects/bt-proj-2606-vandam", "--private") not in calls
+    assert ("git-test", "commit", "-m", "Initial commit project-2606 report") not in calls
+    assert ("git-test", "push", "-u", "origin", "HEAD:main") in calls
 
 
 def _make_renderer(path: Path) -> Path:

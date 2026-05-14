@@ -4,7 +4,7 @@ from pathlib import Path
 
 import click
 
-from bt_web_report_cli.new_project import create_project
+from bt_web_report_cli.new_project import create_project, publish_project
 from bt_web_report_cli.runtime import app_support_dir, prepare_runtime_workspace, run_renderer_script
 from bt_web_report_cli.scrape import scrape_project
 
@@ -73,20 +73,28 @@ def scrape(
 @click.argument("target_web_path", type=click.Path(path_type=Path))
 @click.option("--slug", required=True, help="Project slug, for example project-2606.")
 @click.option("--title", required=True, help="Client-visible project title.")
-@click.option("--repo", required=True, help="GitHub repo name, normally bt-proj-<slug>.")
-@click.option("--production-url", required=True, help="Production URL, for example https://project-2606.bldgtyp.com.")
+@click.option("--repo", required=True, help="GitHub repo / Pages project name, normally bt-proj-<number>-<name>.")
+@click.option("--repo-owner", default="bldgtyp-projects", show_default=True, help="GitHub owner for project repos.")
+@click.option(
+    "--production-url",
+    required=True,
+    help="Production URL, normally https://project-<number>.bldgtyp.com.",
+)
 @click.option("--client", help="Client name.")
 @click.option("--building", help="Building name.")
 @click.option("--phase", help="Project phase.")
 @click.option("--phpp", type=click.Path(path_type=Path), help="Optional PHPP workbook path.")
 @click.option("--renderer-source", type=click.Path(exists=True, file_okay=False, path_type=Path))
 @click.option("--no-git", is_flag=True, help="Create files without git init.")
+@click.option("--no-github", is_flag=True, help="Skip GitHub repo creation, initial commit, and push.")
+@click.option("--gh", "gh_executable", default="gh", show_default=True, help="GitHub CLI executable.")
 @click.option("--overwrite", is_flag=True, help="Replace existing 04_Web contents after explicit confirmation.")
 def new(
     target_web_path: Path,
     slug: str,
     title: str,
     repo: str,
+    repo_owner: str,
     production_url: str,
     client: str | None,
     building: str | None,
@@ -94,10 +102,13 @@ def new(
     phpp: Path | None,
     renderer_source: Path | None,
     no_git: bool,
+    no_github: bool,
+    gh_executable: str,
     overwrite: bool,
 ) -> None:
-    """Create a content-only report repo in 04_Web."""
+    """Create and publish a content-only report repo in 04_Web."""
 
+    result = None
     try:
         target = create_project(
             target_web_path,
@@ -113,9 +124,24 @@ def new(
             init_git=not no_git,
             overwrite=overwrite,
         )
+        if not no_git and not no_github:
+            result = publish_project(
+                target,
+                repo_owner=repo_owner,
+                repo_name=repo,
+                commit_message=f"Initial commit {slug} report",
+                gh_executable=gh_executable,
+            )
     except Exception as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(f"created content-only project: {target}")
+    if no_git:
+        click.echo("skipped git initialization")
+    elif no_github:
+        click.echo("skipped GitHub repo creation and push")
+    elif result is not None:
+        action = "committed and pushed" if result.committed else "pushed existing commit"
+        click.echo(f"{action}: {result.repo_full_name} ({result.remote_url})")
 
 
 @main.command()

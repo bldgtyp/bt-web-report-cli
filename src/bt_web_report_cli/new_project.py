@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
 from datetime import date
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 import yaml
 
@@ -14,6 +17,14 @@ from bt_web_report_cli.runtime import resolve_renderer_source
 
 CONTENT_PAYLOAD = ("content", "data", "public", ".github", ".gitignore", ".dropboxignore", ".editorconfig", "README.md")
 IGNORED_EXISTING_NAMES = {".DS_Store", ".localized", "Icon\r", "desktop.ini", "Thumbs.db"}
+
+
+@dataclass(frozen=True)
+class PublishProjectResult:
+    repo_full_name: str
+    remote_url: str
+    committed: bool
+    pushed: bool
 
 
 def create_project(
@@ -72,6 +83,38 @@ def create_project(
     if init_git:
         _init_git(target)
     return target
+
+
+def publish_project(
+    target_web_path: Path,
+    *,
+    repo_owner: str,
+    repo_name: str,
+    commit_message: str,
+    git_executable: str = "git",
+    gh_executable: str = "gh",
+) -> PublishProjectResult:
+    """Create/verify the GitHub repo, wire origin, commit the payload, and push main."""
+
+    target = target_web_path.expanduser().resolve()
+    if not target.exists():
+        raise RuntimeError(f"Target folder does not exist: {target}")
+
+    _init_git(target, git_executable=git_executable)
+    repo_full_name = f"{repo_owner}/{repo_name}"
+    remote_url = f"https://github.com/{repo_full_name}.git"
+
+    _ensure_github_repo(repo_full_name, gh_executable=gh_executable)
+    _ensure_origin(target, remote_url, git_executable=git_executable)
+    committed = _commit_project(target, commit_message=commit_message, git_executable=git_executable)
+    _run_command((git_executable, "push", "-u", "origin", "HEAD:main"), cwd=target)
+
+    return PublishProjectResult(
+        repo_full_name=repo_full_name,
+        remote_url=remote_url,
+        committed=committed,
+        pushed=True,
+    )
 
 
 def meaningful_existing_items(target: Path) -> list[Path]:
@@ -136,8 +179,58 @@ def _write_project_yaml(
     (target / "project.yaml").write_text(yaml.safe_dump(value, sort_keys=False))
 
 
-def _init_git(target: Path) -> None:
+def _init_git(target: Path, *, git_executable: str = "git") -> None:
     if (target / ".git").exists():
         return
-    subprocess.run(("git", "init"), cwd=target, text=True, check=True)
-    subprocess.run(("git", "branch", "-M", "main"), cwd=target, text=True, check=True)
+    _run_command((git_executable, "init"), cwd=target)
+    _run_command((git_executable, "branch", "-M", "main"), cwd=target)
+
+
+def _ensure_github_repo(repo_full_name: str, *, gh_executable: str) -> None:
+    view = _run_command(
+        (gh_executable, "repo", "view", repo_full_name, "--json", "name"),
+        check=False,
+    )
+    if view.returncode == 0:
+        return
+    _run_command((gh_executable, "repo", "create", repo_full_name, "--private"))
+
+
+def _ensure_origin(target: Path, remote_url: str, *, git_executable: str) -> None:
+    origin = _run_command((git_executable, "remote", "get-url", "origin"), cwd=target, check=False)
+    if origin.returncode == 0:
+        if origin.stdout.strip() != remote_url:
+            _run_command((git_executable, "remote", "set-url", "origin", remote_url), cwd=target)
+        return
+    _run_command((git_executable, "remote", "add", "origin", remote_url), cwd=target)
+
+
+def _commit_project(target: Path, *, commit_message: str, git_executable: str) -> bool:
+    _run_command((git_executable, "add", "-A", "--", ".", ":!.bldgtyp/lock.yaml"), cwd=target)
+    staged = _run_command((git_executable, "diff", "--cached", "--quiet"), cwd=target, check=False)
+    if staged.returncode == 0:
+        return False
+    _run_command((git_executable, "commit", "-m", commit_message), cwd=target)
+    return True
+
+
+def _run_command(
+    args: Sequence[str],
+    *,
+    cwd: Path | None = None,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(tuple(args), cwd=cwd, text=True, capture_output=True)
+    if check and result.returncode != 0:
+        raise RuntimeError(_format_command_error(args, result))
+    return result
+
+
+def _format_command_error(args: Sequence[str], result: subprocess.CompletedProcess[str]) -> str:
+    command = " ".join(shlex.quote(part) for part in args)
+    pieces = [f"Command failed ({result.returncode}): {command}"]
+    if result.stdout.strip():
+        pieces.append(result.stdout.strip())
+    if result.stderr.strip():
+        pieces.append(result.stderr.strip())
+    return "\n".join(pieces)
