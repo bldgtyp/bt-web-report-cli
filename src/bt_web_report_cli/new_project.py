@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import shutil
@@ -188,12 +189,24 @@ def _init_git(target: Path, *, git_executable: str = "git") -> None:
 
 def _ensure_github_repo(repo_full_name: str, *, gh_executable: str) -> None:
     view = _run_command(
-        (gh_executable, "repo", "view", repo_full_name, "--json", "name"),
+        (gh_executable, "repo", "view", repo_full_name, "--json", "isPrivate"),
         check=False,
     )
     if view.returncode == 0:
+        if json.loads(view.stdout).get("isPrivate"):
+            _run_command(
+                (
+                    gh_executable,
+                    "repo",
+                    "edit",
+                    repo_full_name,
+                    "--visibility",
+                    "public",
+                    "--accept-visibility-change-consequences",
+                )
+            )
         return
-    _run_command((gh_executable, "repo", "create", repo_full_name, "--private"))
+    _run_command((gh_executable, "repo", "create", repo_full_name, "--public"))
 
 
 def _ensure_origin(target: Path, remote_url: str, *, git_executable: str) -> None:

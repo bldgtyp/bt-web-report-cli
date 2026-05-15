@@ -146,7 +146,7 @@ def test_create_project_requires_overwrite_for_real_existing_content(tmp_path: P
     assert (target / "project.yaml").exists()
 
 
-def test_publish_project_creates_private_repo_sets_origin_commits_and_pushes(
+def test_publish_project_creates_public_repo_sets_origin_commits_and_pushes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = tmp_path / "Project" / "04_Web"
@@ -185,7 +185,7 @@ def test_publish_project_creates_private_repo_sets_origin_commits_and_pushes(
     assert result.repo_full_name == "bldgtyp-projects/bt-proj-2606-vandam"
     assert result.remote_url == "https://github.com/bldgtyp-projects/bt-proj-2606-vandam.git"
     assert result.committed is True
-    assert ("gh-test", "repo", "create", "bldgtyp-projects/bt-proj-2606-vandam", "--private") in commands
+    assert ("gh-test", "repo", "create", "bldgtyp-projects/bt-proj-2606-vandam", "--public") in commands
     assert (
         "git-test",
         "remote",
@@ -235,9 +235,54 @@ def test_publish_project_reuses_existing_repo_remote_and_commit(
     )
 
     assert result.committed is False
-    assert ("gh-test", "repo", "create", "bldgtyp-projects/bt-proj-2606-vandam", "--private") not in calls
+    assert ("gh-test", "repo", "create", "bldgtyp-projects/bt-proj-2606-vandam", "--public") not in calls
     assert ("git-test", "commit", "-m", "Initial commit project-2606 report") not in calls
     assert ("git-test", "push", "-u", "origin", "HEAD:main") in calls
+
+
+def test_publish_project_makes_existing_private_repo_public(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "Project" / "04_Web"
+    target.mkdir(parents=True)
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(
+        args: tuple[str, ...],
+        *,
+        cwd: Path | None = None,
+        text: bool,
+        capture_output: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        command = tuple(args)
+        calls.append(command)
+        if command[:3] == ("gh-test", "repo", "view"):
+            return subprocess.CompletedProcess(command, 0, stdout='{"isPrivate":true}\n', stderr="")
+        if command[:4] == ("git-test", "remote", "get-url", "origin"):
+            return subprocess.CompletedProcess(command, 2, stdout="", stderr="no origin")
+        if command[:4] == ("git-test", "diff", "--cached", "--quiet"):
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("bt_web_report_cli.new_project.subprocess.run", fake_run)
+
+    result = publish_project(
+        target,
+        repo_owner="bldgtyp-projects",
+        repo_name="bt-proj-2606-vandam",
+        commit_message="Initial commit project-2606 report",
+        git_executable="git-test",
+        gh_executable="gh-test",
+    )
+
+    assert result.committed is False
+    assert (
+        "gh-test",
+        "repo",
+        "edit",
+        "bldgtyp-projects/bt-proj-2606-vandam",
+        "--visibility",
+        "public",
+        "--accept-visibility-change-consequences",
+    ) in calls
 
 
 def _make_renderer(path: Path) -> Path:

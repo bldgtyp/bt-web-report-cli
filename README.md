@@ -15,7 +15,7 @@ and local preview/editor commands.
 | `btwr doctor` | Sanity-check local env (schemas import, tokens present) |
 
 `btwr new` writes a content-only `04_Web/`, initializes git, creates or verifies
-the private GitHub repo under `bldgtyp-projects`, sets `origin`, creates the
+the public GitHub repo under `bldgtyp-projects`, sets `origin`, creates the
 initial commit, and pushes `main`. The copied GitHub Actions workflow handles
 Cloudflare Pages project/domain setup and deploy after the first push.
 
