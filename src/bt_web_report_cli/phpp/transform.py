@@ -19,6 +19,69 @@ class DerivedTables:
     demand_detail: list[dict[str, Any]]
 
 
+def build_report_input_rows(variant_rows: list[dict[str, Any]], variant_ids: Iterable[str]) -> list[dict[str, Any]]:
+    """Build legacy report-card calculated rows for variants.csv."""
+
+    index = _RowIndex(variant_rows)
+    rows: list[dict[str, Any]] = []
+    for variant_id in tuple(variant_ids):
+        tfa_m2 = _number_from_row(index.get("geometry.tfa", variant_id))
+        rows.extend(
+            _converted_variant_rows(
+                index,
+                variant_id,
+                (
+                    _ReportInputConversion(
+                        source_field_id="envelope.envelope_air_leakage_rate_q50",
+                        field_id="report_inputs.envelope_air_leakage_rate_q50",
+                        datatype="Envelope Air Leakage Rate (q50)",
+                        units="cfm/ft2",
+                        factor=0.054680665,
+                    ),
+                    _ReportInputConversion(
+                        source_field_id="systems.cold_air_duct_length_ea",
+                        field_id="report_inputs.cold_air_duct_length_ea",
+                        datatype="Cold Air Duct Length (ea)",
+                        units="ft",
+                        factor=3.280839895,
+                    ),
+                    _ReportInputConversion(
+                        source_field_id="systems.cold_air_duct_insulation_thickness",
+                        field_id="report_inputs.cold_air_duct_insulation_thickness",
+                        datatype="Cold Air Duct Insulation Thickness",
+                        units="inches",
+                        factor=0.039370079,
+                    ),
+                ),
+            )
+        )
+        rows.extend(
+            _annual_demand_report_input(
+                index,
+                variant_id,
+                "certification_results.heat_demand",
+                "report_inputs.heat_demand_annual",
+                "Heat Demand",
+                tfa_m2,
+            )
+        )
+        rows.extend(
+            _annual_demand_report_input(
+                index,
+                variant_id,
+                "certification_results.total_cooling_demand",
+                "report_inputs.cooling_demand_annual",
+                "Cooling Demand",
+                tfa_m2,
+            )
+        )
+        rows.extend(_energy_total_report_input(index, variant_id, "primary_energy", "total_primary_energy"))
+        rows.extend(
+            _energy_total_report_input(index, variant_id, "site_energy", "total_site_energy", exclude=("solar_pv",))
+        )
+    return rows
+
+
 def build_derived_tables(variant_rows: list[dict[str, Any]], variant_ids: Iterable[str]) -> DerivedTables:
     """Build the Phase 1 report tables from normalized Variants rows."""
 
@@ -45,12 +108,131 @@ class _RowIndex:
         return self._by_section.get(section_id, ())
 
 
+@dataclass(frozen=True)
+class _ReportInputConversion:
+    source_field_id: str
+    field_id: str
+    datatype: str
+    units: str
+    factor: float
+
+
+def _converted_variant_rows(
+    index: _RowIndex,
+    variant_id: str,
+    conversions: tuple[_ReportInputConversion, ...],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for conversion in conversions:
+        source = index.get(conversion.source_field_id, variant_id)
+        if source is None:
+            continue
+        value = _number(source["value"])
+        if value is None:
+            continue
+        rows.append(
+            _report_input_row(
+                source,
+                field_id=conversion.field_id,
+                datatype=conversion.datatype,
+                units=conversion.units,
+                value=value * conversion.factor,
+            )
+        )
+    return rows
+
+
+def _annual_demand_report_input(
+    index: _RowIndex,
+    variant_id: str,
+    source_field_id: str,
+    field_id: str,
+    datatype: str,
+    tfa_m2: float | None,
+) -> list[dict[str, Any]]:
+    source = index.get(source_field_id, variant_id)
+    value = _number_from_row(source)
+    if source is None or value is None or tfa_m2 is None:
+        return []
+    return [
+        _report_input_row(
+            source,
+            field_id=field_id,
+            datatype=datatype,
+            units="kWh/yr",
+            value=value * tfa_m2,
+        )
+    ]
+
+
+def _energy_total_report_input(
+    index: _RowIndex,
+    variant_id: str,
+    section_id: str,
+    metric: str,
+    *,
+    exclude: tuple[str, ...] = (),
+) -> list[dict[str, Any]]:
+    values: list[float] = []
+    source_rows: list[dict[str, Any]] = []
+    for row in index.section(section_id):
+        if row["variant_id"] != variant_id:
+            continue
+        item = row["field_id"].split(".", 1)[1]
+        if item in exclude:
+            continue
+        value = _number(row["value"])
+        if value is None:
+            continue
+        values.append(value)
+        source_rows.append(row)
+    if not values or not source_rows:
+        return []
+    return [
+        {
+            "section": "report_inputs",
+            "field_id": f"report_inputs.{metric}",
+            "phpp_label": metric.replace("_", " ").title(),
+            "variant_id": variant_id,
+            "variant_name": source_rows[0]["variant_name"],
+            "datatype": "Total Primary Energy" if metric == "total_primary_energy" else "Total Site Energy",
+            "units": "kWh/yr",
+            "value": sum(values),
+            "excel_row": "",
+        }
+    ]
+
+
+def _report_input_row(
+    source: dict[str, Any],
+    *,
+    field_id: str,
+    datatype: str,
+    units: str,
+    value: float,
+) -> dict[str, Any]:
+    return {
+        "section": "report_inputs",
+        "field_id": field_id,
+        "phpp_label": source["phpp_label"],
+        "variant_id": source["variant_id"],
+        "variant_name": source["variant_name"],
+        "datatype": datatype,
+        "units": units,
+        "value": value,
+        "excel_row": source["excel_row"],
+    }
+
+
 def _building_metrics(index: _RowIndex, variant_ids: tuple[str, ...]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for variant_id in variant_ids:
         tfa = _number_from_row(index.get("geometry.tfa", variant_id))
         envelope_area = _number_from_row(index.get("geometry.building_envelope_area", variant_id))
         gross_volume = _number_from_row(index.get("geometry.gross_volume", variant_id))
+        tfa_ft2 = tfa * M2_TO_FT2 if tfa is not None else None
+        envelope_area_ft2 = envelope_area * M2_TO_FT2 if envelope_area is not None else None
+        gross_volume_ft3 = gross_volume * M3_TO_FT3 if gross_volume is not None else None
 
         rows.extend(
             [
@@ -68,14 +250,19 @@ def _building_metrics(index: _RowIndex, variant_ids: tuple[str, ...]) -> list[di
             ]
         )
 
-        if tfa is not None and envelope_area is not None and tfa != 0:
-            rows.append(_calculated_metric("envelope_area_to_tfa", variant_id, "ft2/ft2", envelope_area / tfa))
-        if gross_volume is not None and envelope_area is not None and gross_volume != 0:
+        if tfa_ft2 is not None and envelope_area_ft2 is not None and tfa_ft2 != 0:
+            rows.append(_calculated_metric("envelope_area_to_tfa", variant_id, "ft2/ft2", envelope_area_ft2 / tfa_ft2))
+        if gross_volume_ft3 is not None and envelope_area_ft2 is not None and gross_volume_ft3 != 0:
             rows.append(
-                _calculated_metric("envelope_area_to_gross_volume", variant_id, "ft2/ft3", envelope_area / gross_volume)
+                _calculated_metric(
+                    "envelope_area_to_gross_volume",
+                    variant_id,
+                    "ft2/ft3",
+                    envelope_area_ft2 / gross_volume_ft3,
+                )
             )
-        if gross_volume is not None and tfa is not None and gross_volume != 0:
-            rows.append(_calculated_metric("tfa_to_gross_volume", variant_id, "ft2/ft3", tfa / gross_volume))
+        if gross_volume_ft3 is not None and tfa_ft2 is not None and gross_volume_ft3 != 0:
+            rows.append(_calculated_metric("tfa_to_gross_volume", variant_id, "ft2/ft3", tfa_ft2 / gross_volume_ft3))
 
         for field_id, metric in _WINDOW_AREA_FIELDS:
             rows.extend(_converted_metric(index, field_id, variant_id, metric, "ft2", M2_TO_FT2))
@@ -120,6 +307,19 @@ def _energy(index: _RowIndex, variant_ids: tuple[str, ...]) -> list[dict[str, An
                         "excel_row": row["excel_row"],
                     }
                 )
+                if section_id == "primary_energy":
+                    rows.append(
+                        {
+                            "metric_group": "phius_net_source_energy",
+                            "end_use": row["field_id"].split(".", 1)[1],
+                            "variant_id": variant_id,
+                            "units": row["units"],
+                            "value": value,
+                            "source_field_id": row["field_id"],
+                            "source_label": row["phpp_label"],
+                            "excel_row": row["excel_row"],
+                        }
+                    )
                 if section_id == "primary_energy":
                     primary_energy_values.append(value)
 
@@ -402,7 +602,7 @@ _HEATING_GAIN_FIELDS = (
 )
 
 _COOLING_LOSS_FIELDS = (
-    "cooling_demand.cooling_demand",
+    "cooling_demand.cooling_demand_2",
     "cooling_demand.walls_ag",
     "cooling_demand.walls_bg",
     "cooling_demand.roofs",

@@ -15,6 +15,7 @@ heating,gain,horizontal,code_min,kWh,0,heating_demand.horizontal,Horizontal,394
 heating,gain,sum_opaque_areas,code_min,kWh,2821.83273871,heating_demand.sum_opaque_areas,Sum opaque areas,395
 heating,gain,internal_gains,code_min,kWh,4557.23009463,heating_demand.internal_gains,Internal Gains,396
 heating,limit,demand_limit,code_min,kWh,9222.11341056,certification_limits.heat_demand_limit,Heat Demand Limit,363
+cooling,loss,cooling_demand_2,code_min,kWh,2133.70968001,cooling_demand.cooling_demand_2,Cooling Demand,399
 cooling,loss,walls_ag,code_min,kWh,14737.7827983,cooling_demand.walls_ag,Walls (AG),400
 cooling,loss,walls_bg,code_min,kWh,1021.71505486,cooling_demand.walls_bg,Walls (BG),401
 cooling,loss,roofs,code_min,kWh,4894.02995409,cooling_demand.roofs,Roofs,402
@@ -47,6 +48,7 @@ heating,gain,horizontal,improved,kWh,0,heating_demand.horizontal,Horizontal,394
 heating,gain,sum_opaque_areas,improved,kWh,1625.44231104,heating_demand.sum_opaque_areas,Sum opaque areas,395
 heating,gain,internal_gains,improved,kWh,4557.23009463,heating_demand.internal_gains,Internal Gains,396
 heating,limit,demand_limit,improved,kWh,9222.11341056,certification_limits.heat_demand_limit,Heat Demand Limit,363
+cooling,loss,cooling_demand_2,improved,kWh,2159.85721122,cooling_demand.cooling_demand_2,Cooling Demand,399
 cooling,loss,walls_ag,improved,kWh,9317.67944356,cooling_demand.walls_ag,Walls (AG),400
 cooling,loss,walls_bg,improved,kWh,820.543568437,cooling_demand.walls_bg,Walls (BG),401
 cooling,loss,roofs,improved,kWh,3222.46661721,cooling_demand.roofs,Roofs,402
@@ -79,6 +81,7 @@ heating,gain,horizontal,phi_leb,kWh,0,heating_demand.horizontal,Horizontal,394
 heating,gain,sum_opaque_areas,phi_leb,kWh,1116.80239677,heating_demand.sum_opaque_areas,Sum opaque areas,395
 heating,gain,internal_gains,phi_leb,kWh,4056.43557873,heating_demand.internal_gains,Internal Gains,396
 heating,limit,demand_limit,phi_leb,kWh,9222.11341056,certification_limits.heat_demand_limit,Heat Demand Limit,363
+cooling,loss,cooling_demand_2,phi_leb,kWh,2337.96497518,cooling_demand.cooling_demand_2,Cooling Demand,399
 cooling,loss,walls_ag,phi_leb,kWh,7046.53913363,cooling_demand.walls_ag,Walls (AG),400
 cooling,loss,walls_bg,phi_leb,kWh,757.393826252,cooling_demand.walls_bg,Walls (BG),401
 cooling,loss,roofs,phi_leb,kWh,2627.8040698,cooling_demand.roofs,Roofs,402
@@ -111,6 +114,7 @@ heating,gain,horizontal,phi_classic,kWh,0,heating_demand.horizontal,Horizontal,3
 heating,gain,sum_opaque_areas,phi_classic,kWh,999.738324237,heating_demand.sum_opaque_areas,Sum opaque areas,395
 heating,gain,internal_gains,phi_classic,kWh,4056.43557873,heating_demand.internal_gains,Internal Gains,396
 heating,limit,demand_limit,phi_classic,kWh,4611.05670528,certification_limits.heat_demand_limit,Heat Demand Limit,363
+cooling,loss,cooling_demand_2,phi_classic,kWh,4004.05704557,cooling_demand.cooling_demand_2,Cooling Demand,399
 cooling,loss,walls_ag,phi_classic,kWh,6099.53037765,cooling_demand.walls_ag,Walls (AG),400
 cooling,loss,walls_bg,phi_classic,kWh,726.919702596,cooling_demand.walls_bg,Walls (BG),401
 cooling,loss,roofs,phi_classic,kWh,2367.31568533,cooling_demand.roofs,Roofs,402
@@ -143,6 +147,7 @@ heating,gain,horizontal,as_drawn,kWh,0,heating_demand.horizontal,Horizontal,394
 heating,gain,sum_opaque_areas,as_drawn,kWh,951.779310325,heating_demand.sum_opaque_areas,Sum opaque areas,395
 heating,gain,internal_gains,as_drawn,kWh,4056.43557873,heating_demand.internal_gains,Internal Gains,396
 heating,limit,demand_limit,as_drawn,kWh,4611.05670528,certification_limits.heat_demand_limit,Heat Demand Limit,363
+cooling,loss,cooling_demand_2,as_drawn,kWh,4164.00925879,cooling_demand.cooling_demand_2,Cooling Demand,399
 cooling,loss,walls_ag,as_drawn,kWh,6084.37380203,cooling_demand.walls_ag,Walls (AG),400
 cooling,loss,walls_bg,as_drawn,kWh,789.161726693,cooling_demand.walls_bg,Walls (BG),401
 cooling,loss,roofs,as_drawn,kWh,2035.3769436,cooling_demand.roofs,Roofs,402

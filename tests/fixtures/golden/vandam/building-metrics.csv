@@ -4,8 +4,8 @@ building_envelope_area,code_minimum,ft2,4215.50825244,geometry.building_envelope
 interior_net_volume,code_minimum,ft3,25626.4943656,geometry.vn50,Vn50,318
 gross_volume,code_minimum,ft3,33314.4426753,geometry.gross_volume,Gross Volume,320
 envelope_area_to_tfa,code_minimum,ft2/ft2,1.34923010915,,,
-envelope_area_to_gross_volume,code_minimum,ft2/ft3,0.415147501712,,,
-tfa_to_gross_volume,code_minimum,ft2/ft3,0.307692141539,,,
+envelope_area_to_gross_volume,code_minimum,ft2/ft3,0.126536958566,,,
+tfa_to_gross_volume,code_minimum,ft2/ft3,0.0937845647736,,,
 window_area_north,code_minimum,ft2,333.653585494,geometry.window_area_north,Window Area (North),321
 window_area_east,code_minimum,ft2,0,geometry.window_area_east,Window Area (East),322
 window_area_south,code_minimum,ft2,206.449705567,geometry.window_area_south,Window Area (South),323
@@ -16,8 +16,8 @@ building_envelope_area,improved_envelope,ft2,4215.50825244,geometry.building_env
 interior_net_volume,improved_envelope,ft3,25626.4943656,geometry.vn50,Vn50,318
 gross_volume,improved_envelope,ft3,33314.4426753,geometry.gross_volume,Gross Volume,320
 envelope_area_to_tfa,improved_envelope,ft2/ft2,1.34923010915,,,
-envelope_area_to_gross_volume,improved_envelope,ft2/ft3,0.415147501712,,,
-tfa_to_gross_volume,improved_envelope,ft2/ft3,0.307692141539,,,
+envelope_area_to_gross_volume,improved_envelope,ft2/ft3,0.126536958566,,,
+tfa_to_gross_volume,improved_envelope,ft2/ft3,0.0937845647736,,,
 window_area_north,improved_envelope,ft2,333.653585494,geometry.window_area_north,Window Area (North),321
 window_area_east,improved_envelope,ft2,0,geometry.window_area_east,Window Area (East),322
 window_area_south,improved_envelope,ft2,206.449705567,geometry.window_area_south,Window Area (South),323
@@ -28,8 +28,8 @@ building_envelope_area,improved_hvac,ft2,4215.50825244,geometry.building_envelop
 interior_net_volume,improved_hvac,ft3,25626.4943656,geometry.vn50,Vn50,318
 gross_volume,improved_hvac,ft3,33314.4426753,geometry.gross_volume,Gross Volume,320
 envelope_area_to_tfa,improved_hvac,ft2/ft2,1.34923010915,,,
-envelope_area_to_gross_volume,improved_hvac,ft2/ft3,0.415147501712,,,
-tfa_to_gross_volume,improved_hvac,ft2/ft3,0.307692141539,,,
+envelope_area_to_gross_volume,improved_hvac,ft2/ft3,0.126536958566,,,
+tfa_to_gross_volume,improved_hvac,ft2/ft3,0.0937845647736,,,
 window_area_north,improved_hvac,ft2,333.653585494,geometry.window_area_north,Window Area (North),321
 window_area_east,improved_hvac,ft2,0,geometry.window_area_east,Window Area (East),322
 window_area_south,improved_hvac,ft2,206.449705567,geometry.window_area_south,Window Area (South),323
@@ -40,8 +40,8 @@ building_envelope_area,enerphit_by_component,ft2,4215.50825244,geometry.building
 interior_net_volume,enerphit_by_component,ft3,25626.4943656,geometry.vn50,Vn50,318
 gross_volume,enerphit_by_component,ft3,33314.4426753,geometry.gross_volume,Gross Volume,320
 envelope_area_to_tfa,enerphit_by_component,ft2/ft2,1.34923010915,,,
-envelope_area_to_gross_volume,enerphit_by_component,ft2/ft3,0.415147501712,,,
-tfa_to_gross_volume,enerphit_by_component,ft2/ft3,0.307692141539,,,
+envelope_area_to_gross_volume,enerphit_by_component,ft2/ft3,0.126536958566,,,
+tfa_to_gross_volume,enerphit_by_component,ft2/ft3,0.0937845647736,,,
 window_area_north,enerphit_by_component,ft2,333.653585494,geometry.window_area_north,Window Area (North),321
 window_area_east,enerphit_by_component,ft2,0,geometry.window_area_east,Window Area (East),322
 window_area_south,enerphit_by_component,ft2,206.449705567,geometry.window_area_south,Window Area (South),323
@@ -52,8 +52,8 @@ building_envelope_area,enerphit_by_demand,ft2,4215.50825244,geometry.building_en
 interior_net_volume,enerphit_by_demand,ft3,25626.4943656,geometry.vn50,Vn50,318
 gross_volume,enerphit_by_demand,ft3,33314.4426753,geometry.gross_volume,Gross Volume,320
 envelope_area_to_tfa,enerphit_by_demand,ft2/ft2,1.34923010915,,,
-envelope_area_to_gross_volume,enerphit_by_demand,ft2/ft3,0.415147501712,,,
-tfa_to_gross_volume,enerphit_by_demand,ft2/ft3,0.307692141539,,,
+envelope_area_to_gross_volume,enerphit_by_demand,ft2/ft3,0.126536958566,,,
+tfa_to_gross_volume,enerphit_by_demand,ft2/ft3,0.0937845647736,,,
 window_area_north,enerphit_by_demand,ft2,333.653585494,geometry.window_area_north,Window Area (North),321
 window_area_east,enerphit_by_demand,ft2,0,geometry.window_area_east,Window Area (East),322
 window_area_south,enerphit_by_demand,ft2,206.449705567,geometry.window_area_south,Window Area (South),323

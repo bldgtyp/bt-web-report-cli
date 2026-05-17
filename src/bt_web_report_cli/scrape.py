@@ -12,7 +12,7 @@ from bt_web_report_schemas.phpp import get_schema
 from bt_web_report_cli import __version__
 from bt_web_report_cli.io.project import default_output_dir, resolve_workbook_path
 from bt_web_report_cli.io.workbook_openpyxl import OpenpyxlWorkbookReader
-from bt_web_report_cli.phpp.transform import build_derived_tables
+from bt_web_report_cli.phpp.transform import build_derived_tables, build_report_input_rows
 from bt_web_report_cli.phpp.write import VARIANTS_FIELDNAMES, csv_rows, write_report_data
 
 
@@ -60,6 +60,7 @@ def scrape_project(
         msg = f"No monthly climate data found in workbook: {workbook_path}"
         raise ValueError(msg)
     report_rows = csv_rows(rows, VARIANTS_FIELDNAMES)
+    report_rows.extend(build_report_input_rows(report_rows, (variant.id for variant in variants)))
     derived_tables = build_derived_tables(report_rows, (variant.id for variant in variants))
 
     recommended_variant = variants[-1]

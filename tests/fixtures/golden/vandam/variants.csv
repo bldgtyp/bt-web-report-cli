@@ -829,3 +829,38 @@ primary_energy_renewable,primary_energy_renewable.solar_pv,Solar PV,improved_env
 primary_energy_renewable,primary_energy_renewable.solar_pv,Solar PV,improved_hvac,Improved HVAC,Solar PV,kWh,0,535
 primary_energy_renewable,primary_energy_renewable.solar_pv,Solar PV,enerphit_by_component,EnerPHit by Component,Solar PV,kWh,0,535
 primary_energy_renewable,primary_energy_renewable.solar_pv,Solar PV,enerphit_by_demand,EnerPHit by Demand,Solar PV,kWh,0,535
+report_inputs,report_inputs.envelope_air_leakage_rate_q50,Envelope Air Leakage Rate (q50),code_minimum,Code Minimum,Envelope Air Leakage Rate (q50),cfm/ft2,0.303954978603,345
+report_inputs,report_inputs.cold_air_duct_length_ea,Cold Air Duct Length (ea),code_minimum,Code Minimum,Cold Air Duct Length (ea),ft,16.404199475,354
+report_inputs,report_inputs.cold_air_duct_insulation_thickness,Cold Air Duct Insulation Thickness,code_minimum,Code Minimum,Cold Air Duct Insulation Thickness,inches,2.047244108,355
+report_inputs,report_inputs.heat_demand_annual,Heat Demand,code_minimum,Code Minimum,Heat Demand,kWh/yr,18508.5610541,459
+report_inputs,report_inputs.cooling_demand_annual,Total Cooling Demand,code_minimum,Code Minimum,Cooling Demand,kWh/yr,3691.59634428,462
+report_inputs,report_inputs.total_primary_energy,Total Primary Energy,code_minimum,Code Minimum,Total Primary Energy,kWh/yr,63140.5026615,
+report_inputs,report_inputs.total_site_energy,Total Site Energy,code_minimum,Code Minimum,Total Site Energy,kWh/yr,24284.808716,
+report_inputs,report_inputs.envelope_air_leakage_rate_q50,Envelope Air Leakage Rate (q50),improved_envelope,Improved Envelope,Envelope Air Leakage Rate (q50),cfm/ft2,0.202636652402,345
+report_inputs,report_inputs.cold_air_duct_length_ea,Cold Air Duct Length (ea),improved_envelope,Improved Envelope,Cold Air Duct Length (ea),ft,16.404199475,354
+report_inputs,report_inputs.cold_air_duct_insulation_thickness,Cold Air Duct Insulation Thickness,improved_envelope,Improved Envelope,Cold Air Duct Insulation Thickness,inches,2.047244108,355
+report_inputs,report_inputs.heat_demand_annual,Heat Demand,improved_envelope,Improved Envelope,Heat Demand,kWh/yr,13119.7641519,459
+report_inputs,report_inputs.cooling_demand_annual,Total Cooling Demand,improved_envelope,Improved Envelope,Cooling Demand,kWh/yr,3640.37982247,462
+report_inputs,report_inputs.total_primary_energy,Total Primary Energy,improved_envelope,Improved Envelope,Total Primary Energy,kWh/yr,54027.8320188,
+report_inputs,report_inputs.total_site_energy,Total Site Energy,improved_envelope,Improved Envelope,Total Site Energy,kWh/yr,20779.9353918,
+report_inputs,report_inputs.envelope_air_leakage_rate_q50,Envelope Air Leakage Rate (q50),improved_hvac,Improved HVAC,Envelope Air Leakage Rate (q50),cfm/ft2,0.202636652402,345
+report_inputs,report_inputs.cold_air_duct_length_ea,Cold Air Duct Length (ea),improved_hvac,Improved HVAC,Cold Air Duct Length (ea),ft,16.404199475,354
+report_inputs,report_inputs.cold_air_duct_insulation_thickness,Cold Air Duct Insulation Thickness,improved_hvac,Improved HVAC,Cold Air Duct Insulation Thickness,inches,2.047244108,355
+report_inputs,report_inputs.heat_demand_annual,Heat Demand,improved_hvac,Improved HVAC,Heat Demand,kWh/yr,11304.8517162,459
+report_inputs,report_inputs.cooling_demand_annual,Total Cooling Demand,improved_hvac,Improved HVAC,Cooling Demand,kWh/yr,3900.05164826,462
+report_inputs,report_inputs.total_primary_energy,Total Primary Energy,improved_hvac,Improved HVAC,Total Primary Energy,kWh/yr,54179.1250524,
+report_inputs,report_inputs.total_site_energy,Total Site Energy,improved_hvac,Improved HVAC,Total Site Energy,kWh/yr,20838.1250202,
+report_inputs,report_inputs.envelope_air_leakage_rate_q50,Envelope Air Leakage Rate (q50),enerphit_by_component,EnerPHit by Component,Envelope Air Leakage Rate (q50),cfm/ft2,0.101318326201,345
+report_inputs,report_inputs.cold_air_duct_length_ea,Cold Air Duct Length (ea),enerphit_by_component,EnerPHit by Component,Cold Air Duct Length (ea),ft,16.404199475,354
+report_inputs,report_inputs.cold_air_duct_insulation_thickness,Cold Air Duct Insulation Thickness,enerphit_by_component,EnerPHit by Component,Cold Air Duct Insulation Thickness,inches,2.047244108,355
+report_inputs,report_inputs.heat_demand_annual,Heat Demand,enerphit_by_component,EnerPHit by Component,Heat Demand,kWh/yr,7605.45531022,459
+report_inputs,report_inputs.cooling_demand_annual,Total Cooling Demand,enerphit_by_component,EnerPHit by Component,Cooling Demand,kWh/yr,4023.20020578,462
+report_inputs,report_inputs.total_primary_energy,Total Primary Energy,enerphit_by_component,EnerPHit by Component,Total Primary Energy,kWh/yr,47644.8409377,
+report_inputs,report_inputs.total_site_energy,Total Site Energy,enerphit_by_component,EnerPHit by Component,Total Site Energy,kWh/yr,18324.9388222,
+report_inputs,report_inputs.envelope_air_leakage_rate_q50,Envelope Air Leakage Rate (q50),enerphit_by_demand,EnerPHit by Demand,Envelope Air Leakage Rate (q50),cfm/ft2,0.101318326201,345
+report_inputs,report_inputs.cold_air_duct_length_ea,Cold Air Duct Length (ea),enerphit_by_demand,EnerPHit by Demand,Cold Air Duct Length (ea),ft,16.404199475,354
+report_inputs,report_inputs.cold_air_duct_insulation_thickness,Cold Air Duct Insulation Thickness,enerphit_by_demand,EnerPHit by Demand,Cold Air Duct Insulation Thickness,inches,4.094488216,355
+report_inputs,report_inputs.heat_demand_annual,Heat Demand,enerphit_by_demand,EnerPHit by Demand,Heat Demand,kWh/yr,5675.39329712,459
+report_inputs,report_inputs.cooling_demand_annual,Total Cooling Demand,enerphit_by_demand,EnerPHit by Demand,Cooling Demand,kWh/yr,3515.72997047,462
+report_inputs,report_inputs.total_primary_energy,Total Primary Energy,enerphit_by_demand,EnerPHit by Demand,Total Primary Energy,kWh/yr,41006.1978795,
+report_inputs,report_inputs.total_site_energy,Total Site Energy,enerphit_by_demand,EnerPHit by Demand,Total Site Energy,kWh/yr,15771.614569,
