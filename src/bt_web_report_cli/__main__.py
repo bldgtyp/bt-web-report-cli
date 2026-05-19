@@ -1,9 +1,11 @@
 """btwr entry point — wired by the `btwr` script in pyproject.toml."""
 
+import json
 from pathlib import Path
 
 import click
 
+from bt_web_report_cli.assets import create_image_pair
 from bt_web_report_cli.new_project import create_project, publish_project
 from bt_web_report_cli.runtime import app_support_dir, prepare_runtime_workspace, run_renderer_script
 from bt_web_report_cli.scrape import scrape_project
@@ -12,6 +14,52 @@ from bt_web_report_cli.scrape import scrape_project
 @click.group()
 def main() -> None:
     """btwr — bt-web-report CLI."""
+
+
+@main.group()
+def assets() -> None:
+    """Author client-visible report assets."""
+
+
+@assets.command("image-pair")
+@click.argument("project_path", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.argument("source_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--asset-path",
+    required=True,
+    help="Display image path relative to the project's assets dir, e.g. windows/radiation/winter.png.",
+)
+@click.option(
+    "--full-asset-path",
+    help="High-resolution image path relative to the project's assets dir. Defaults to '<stem>-full<ext>'.",
+)
+@click.option("--max-width", default=1200, show_default=True, help="Maximum display-image width in pixels.")
+@click.option("--max-height", type=int, help="Optional maximum display-image height in pixels.")
+@click.option("--overwrite", is_flag=True, help="Replace existing output images.")
+def image_pair(
+    project_path: Path,
+    source_path: Path,
+    asset_path: str,
+    full_asset_path: str | None,
+    max_width: int,
+    max_height: int | None,
+    overwrite: bool,
+) -> None:
+    """Create a display/full-resolution image pair and print project URLs as JSON."""
+
+    try:
+        result = create_image_pair(
+            project_path,
+            source_path,
+            asset_path,
+            full_asset_path=full_asset_path,
+            max_width=max_width,
+            max_height=max_height,
+            overwrite=overwrite,
+        )
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(result.as_dict(), indent=2, sort_keys=True))
 
 
 @main.command()
