@@ -13,7 +13,7 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_DIR = Path(os.environ.get("BTWR_TEST_PHPP_DIR", WORKSPACE_ROOT / "test-files" / "phpp"))
 VANDAM_COMPAT_DIR = FIXTURE_DIR / "2606-Vandam-St"
 VANDAM_WORKBOOK = VANDAM_COMPAT_DIR / "2606-29-Vandam-St.xlsx"
-VANDAM_LEGACY_DATA = VANDAM_COMPAT_DIR / "phpp-data"
+VANDAM_LEGACY_DATA = VANDAM_COMPAT_DIR / "phpp-data-legacy"
 
 RAW_LEGACY_PREFIX = "phpp_data_"
 

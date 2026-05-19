@@ -14,9 +14,10 @@ from bt_web_report_cli.phpp.write import REPORT_CSV_TABLES
 from bt_web_report_schemas.phpp.models import ClimateMonthlySchema, RoomVentilationSchema, WorkbookSchema
 
 FIXTURE_DIR = Path(os.environ.get("BTWR_TEST_PHPP_DIR", Path(__file__).resolve().parents[2] / "test-files" / "phpp"))
-GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
-VANDAM_FIXTURE = FIXTURE_DIR / "2606-29-Vandam-St-260506.xlsx"
-LINDE_FIXTURE = FIXTURE_DIR / "2524-Linde-Residence-250709.xlsx"
+VANDAM_DIR = FIXTURE_DIR / "2606-Vandam-St"
+LINDE_DIR = FIXTURE_DIR / "2524-Linde-Residence"
+VANDAM_FIXTURE = VANDAM_DIR / "2606-29-Vandam-St.xlsx"
+LINDE_FIXTURE = LINDE_DIR / "2524-Linde-Residence-250709.xlsx"
 
 
 @dataclass(frozen=True)
@@ -36,11 +37,11 @@ def scraped_linde(tmp_path_factory: pytest.TempPathFactory) -> ScrapeOutput:
 
 
 def test_vandam_golden_csvs(scraped_vandam: ScrapeOutput) -> None:
-    _assert_golden_csvs(scraped_vandam.data_dir, GOLDEN_DIR / "vandam")
+    _assert_golden_csvs(scraped_vandam.data_dir, VANDAM_DIR / "scrape-output")
 
 
 def test_linde_golden_csvs(scraped_linde: ScrapeOutput) -> None:
-    _assert_golden_csvs(scraped_linde.data_dir, GOLDEN_DIR / "linde")
+    _assert_golden_csvs(scraped_linde.data_dir, LINDE_DIR / "scrape-output")
 
 
 def test_scrape_fixture_writes_manifest_and_variants_csv(scraped_vandam: ScrapeOutput) -> None:

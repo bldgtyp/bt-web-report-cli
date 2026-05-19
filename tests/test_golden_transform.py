@@ -1,4 +1,5 @@
 import csv
+import os
 from pathlib import Path
 
 import pytest
@@ -6,12 +7,16 @@ import pytest
 from bt_web_report_cli.phpp.transform import build_derived_tables
 from bt_web_report_cli.phpp.write import DERIVED_REPORT_CSV_TABLES, csv_bytes
 
-GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
+FIXTURE_DIR = Path(os.environ.get("BTWR_TEST_PHPP_DIR", Path(__file__).resolve().parents[2] / "test-files" / "phpp"))
+FIXTURE_PROJECTS = {
+    "vandam": "2606-Vandam-St",
+    "linde": "2524-Linde-Residence",
+}
 
 
 @pytest.mark.parametrize("fixture_name", ["vandam", "linde"])
 def test_golden_variants_transform_to_derived_csvs(fixture_name: str) -> None:
-    fixture_dir = GOLDEN_DIR / fixture_name
+    fixture_dir = FIXTURE_DIR / FIXTURE_PROJECTS[fixture_name] / "scrape-output"
     variants_rows = list(csv.DictReader((fixture_dir / "variants.csv").open()))
     variant_ids = _variant_ids(variants_rows)
 
