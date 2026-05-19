@@ -17,7 +17,10 @@ FIXTURE_PROJECTS = {
 @pytest.mark.parametrize("fixture_name", ["vandam", "linde"])
 def test_golden_variants_transform_to_derived_csvs(fixture_name: str) -> None:
     fixture_dir = FIXTURE_DIR / FIXTURE_PROJECTS[fixture_name] / "scrape-output"
-    variants_rows = list(csv.DictReader((fixture_dir / "variants.csv").open()))
+    variants_path = fixture_dir / "variants.csv"
+    if not variants_path.exists():
+        pytest.skip(f"Scrape-output fixture is not available: {variants_path}")
+    variants_rows = list(csv.DictReader(variants_path.open()))
     variant_ids = _variant_ids(variants_rows)
 
     derived = build_derived_tables(variants_rows, variant_ids)
