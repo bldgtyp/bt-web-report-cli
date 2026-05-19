@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -31,6 +32,42 @@ def test_prepare_runtime_workspace_keeps_node_dependencies_outside_project(tmp_p
     assert (workspace.workspace_path / "content").resolve() == (project / "content").resolve()
     assert not (project / "node_modules").exists()
     assert not (project / "package.json").exists()
+
+
+def test_prepare_runtime_workspace_retries_transient_non_empty_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    renderer = _make_renderer(tmp_path / "renderer")
+    project = _make_project(tmp_path / "Project" / "04_Web")
+    app_support = tmp_path / "support"
+    workspace = app_support / "previews" / "sample"
+    workspace.mkdir(parents=True)
+    (workspace / "src").mkdir()
+    (workspace / "src" / "stale.txt").write_text("stale")
+    calls = 0
+    real_rmtree = shutil.rmtree
+
+    def flaky_rmtree(path: Path, *args: object, **kwargs: object) -> None:
+        nonlocal calls
+        if Path(path).name == "sample" and calls == 0:
+            calls += 1
+            raise OSError(66, "Directory not empty", "src")
+        real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr("bt_web_report_cli.runtime.shutil.rmtree", flaky_rmtree)
+    monkeypatch.setattr("bt_web_report_cli.runtime.REMOVE_RETRY_DELAYS", (0,))
+
+    prepared = prepare_runtime_workspace(
+        project,
+        kind="preview",
+        renderer_source=renderer,
+        base_dir=app_support,
+        install=False,
+    )
+
+    assert calls == 1
+    assert (prepared.workspace_path / "src" / "pages" / "index.astro").exists()
+    assert not (prepared.workspace_path / "src" / "stale.txt").exists()
 
 
 def test_run_renderer_script_points_tina_at_project_content(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

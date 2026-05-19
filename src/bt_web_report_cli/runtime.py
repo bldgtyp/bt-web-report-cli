@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -18,6 +20,8 @@ RENDERER_SOURCE_ENV = "BTWR_RENDERER_SOURCE"
 TINA_CONTENT_ROOT_ENV = "BTWR_TINA_CONTENT_ROOT"
 
 APP_SUPPORT_DEFAULT = Path("~/Library/Application Support/bt-web-report-manager").expanduser()
+REMOVE_RETRY_DELAYS = (0.1, 0.25, 0.5)
+REMOVE_RETRY_ERRNOS = {errno.ENOTEMPTY, errno.EBUSY, errno.EPERM}
 RENDERER_PAYLOAD = (
     "astro.config.mjs",
     "package.json",
@@ -142,7 +146,7 @@ def prepare_runtime_workspace(
     bucket = "builds" if kind == "build" else "previews"
     workspace = (base_dir or app_support_dir()) / bucket / project_slug(resolved_project)
     if workspace.exists():
-        shutil.rmtree(workspace)
+        _remove_tree(workspace)
     workspace.mkdir(parents=True)
 
     for name in RENDERER_PAYLOAD:
@@ -264,4 +268,23 @@ def _remove(path: Path) -> None:
     if path.is_symlink() or path.is_file():
         path.unlink()
     elif path.is_dir():
-        shutil.rmtree(path)
+        _remove_tree(path)
+
+
+def _remove_tree(path: Path) -> None:
+    for delay in (*REMOVE_RETRY_DELAYS, None):
+        try:
+            shutil.rmtree(path)
+            return
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            if exc.errno not in REMOVE_RETRY_ERRNOS:
+                raise
+            if delay is None:
+                msg = (
+                    f"Could not remove runtime directory {path}: {exc}. "
+                    "Stop any running btwr preview/editor for this project and retry."
+                )
+                raise RuntimeError(msg) from exc
+            time.sleep(delay)
