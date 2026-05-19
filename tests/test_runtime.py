@@ -1,3 +1,4 @@
+import errno
 import os
 import shutil
 import subprocess
@@ -51,7 +52,7 @@ def test_prepare_runtime_workspace_retries_transient_non_empty_cleanup(
         nonlocal calls
         if Path(path).name == "sample" and calls == 0:
             calls += 1
-            raise OSError(66, "Directory not empty", "src")
+            raise OSError(errno.ENOTEMPTY, "Directory not empty", "src")
         real_rmtree(path, *args, **kwargs)
 
     monkeypatch.setattr("bt_web_report_cli.runtime.shutil.rmtree", flaky_rmtree)

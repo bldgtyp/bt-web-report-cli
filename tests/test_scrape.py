@@ -9,7 +9,9 @@ from click.testing import CliRunner
 from openpyxl import Workbook
 
 from bt_web_report_cli.__main__ import main
+from bt_web_report_cli.io.workbook_openpyxl import OpenpyxlWorkbookReader
 from bt_web_report_cli.phpp.write import REPORT_CSV_TABLES
+from bt_web_report_schemas.phpp.models import ClimateMonthlySchema, RoomVentilationSchema, WorkbookSchema
 
 FIXTURE_DIR = Path(os.environ.get("BTWR_TEST_PHPP_DIR", Path(__file__).resolve().parents[2] / "test-files" / "phpp"))
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "golden"
@@ -247,6 +249,21 @@ def test_scrape_all_null_variant_data_fails_loudly(tmp_path: Path) -> None:
     assert "No variant data found" in result.output
 
 
+def test_variant_columns_follow_excel_column_order(tmp_path: Path) -> None:
+    workbook_path = tmp_path / "variant-order.xlsx"
+    workbook = _minimal_workbook()
+    variants = workbook.create_sheet("Variants")
+    variants["G2"] = "2 - Right"
+    variants["E2"] = "1 - Left"
+    variants["H2"] = "3 - Far Right"
+    workbook.save(workbook_path)
+
+    columns = OpenpyxlWorkbookReader(workbook_path).read_variant_columns(_minimal_schema())
+
+    assert [column.name for column in columns] == ["Left", "Right", "Far Right"]
+    assert [column.source_column for column in columns] == ["E", "G", "H"]
+
+
 def _scrape_fixture(workbook_path: Path, output_dir: Path) -> ScrapeOutput:
     if not workbook_path.exists():
         pytest.skip(f"PHPP workbook fixture is not available: {workbook_path}")
@@ -273,3 +290,32 @@ def _minimal_workbook() -> Workbook:
     sheet.title = "Data"
     sheet["B5"] = "10.6"
     return workbook
+
+
+def _minimal_schema() -> WorkbookSchema:
+    return WorkbookSchema(
+        version="10.6",
+        variant_sheet="Variants",
+        climate_sheet="Climate",
+        room_ventilation_sheet="Additional Ventilation",
+        phpp_version_cell="B5",
+        phpp_version_named_range="PHPP_Version",
+        variant_header_row=2,
+        variant_first_data_row=3,
+        variants=(),
+        climate_monthly=ClimateMonthlySchema(
+            sheet="Climate",
+            start_row=1,
+            end_row=1,
+            start_col="A",
+            end_col="B",
+        ),
+        room_ventilation=RoomVentilationSchema(
+            sheet="Additional Ventilation",
+            header_col="A",
+            header_label="",
+            entry_col="A",
+            first_entry_label="1",
+            last_col="B",
+        ),
+    )

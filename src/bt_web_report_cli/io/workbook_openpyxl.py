@@ -72,7 +72,7 @@ class OpenpyxlWorkbookReader:
         if not columns:
             msg = f"No active variants found on {schema.variant_sheet} row {schema.variant_header_row}."
             raise ValueError(msg)
-        return tuple(columns)
+        return tuple(sorted(columns, key=lambda column: column.column_index))
 
     def read_variants(self, schema: WorkbookSchema, variant_columns: tuple[VariantColumn, ...]) -> list[dict[str, Any]]:
         """Read Variants worksheet rows into the first long-format report table."""

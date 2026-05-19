@@ -44,11 +44,11 @@ def scrape_project(
         VariantMeta(
             id=column.id,
             name=column.name,
-            order=column.order,
+            order=index,
             recommended=column == variant_columns[-1],
             source_column=column.source_column,
         )
-        for column in variant_columns
+        for index, column in enumerate(variant_columns)
     )
     rows = reader.read_variants(schema, variant_columns)
     if not rows:
