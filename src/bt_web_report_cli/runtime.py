@@ -106,10 +106,9 @@ def ensure_renderer(
     source = resolve_renderer_source(renderer_source)
     if source is not None:
         _sync_renderer_source(source, target)
-        source_node_modules = source / "node_modules"
         target_node_modules = target / "node_modules"
-        if source_node_modules.exists() and not target_node_modules.exists():
-            _symlink(source_node_modules, target_node_modules)
+        if target_node_modules.is_symlink():
+            _remove(target_node_modules)
     elif not (target / "package.json").exists():
         msg = (
             "No renderer runtime is installed. Set BTWR_RENDERER_SOURCE or pass "

@@ -35,6 +35,72 @@ def test_prepare_runtime_workspace_keeps_node_dependencies_outside_project(tmp_p
     assert not (project / "package.json").exists()
 
 
+def test_prepare_runtime_workspace_installs_app_support_dependencies_instead_of_symlinking_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    renderer = _make_renderer(tmp_path / "renderer")
+    project = _make_project(tmp_path / "Project" / "04_Web")
+    app_support = tmp_path / "support"
+    installed: list[Path] = []
+    monkeypatch.setenv("NODE_AUTH_TOKEN", "test-token")
+
+    def fake_run_pnpm_install(
+        target: Path,
+        pnpm_executable: str,
+        env: dict[str, str],
+    ) -> subprocess.CompletedProcess[str]:
+        installed.append(target)
+        (target / "node_modules").mkdir()
+        return subprocess.CompletedProcess((pnpm_executable, "install"), 0)
+
+    monkeypatch.setattr("bt_web_report_cli.runtime._run_pnpm_install", fake_run_pnpm_install)
+
+    workspace = prepare_runtime_workspace(
+        project,
+        kind="preview",
+        renderer_source=renderer,
+        base_dir=app_support,
+    )
+
+    renderer_runtime = app_support / "renderer" / "current"
+    assert installed == [renderer_runtime]
+    assert (renderer_runtime / "node_modules").is_dir()
+    assert not (renderer_runtime / "node_modules").is_symlink()
+    assert (workspace.workspace_path / "node_modules").resolve() == (renderer_runtime / "node_modules").resolve()
+
+
+def test_prepare_runtime_workspace_replaces_stale_source_node_modules_symlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    renderer = _make_renderer(tmp_path / "renderer")
+    project = _make_project(tmp_path / "Project" / "04_Web")
+    app_support = tmp_path / "support"
+    renderer_runtime = app_support / "renderer" / "current"
+    renderer_runtime.mkdir(parents=True)
+    (renderer_runtime / "node_modules").symlink_to(renderer / "node_modules", target_is_directory=True)
+    monkeypatch.setenv("NODE_AUTH_TOKEN", "test-token")
+
+    def fake_run_pnpm_install(
+        target: Path,
+        pnpm_executable: str,
+        env: dict[str, str],
+    ) -> subprocess.CompletedProcess[str]:
+        (target / "node_modules").mkdir()
+        return subprocess.CompletedProcess((pnpm_executable, "install"), 0)
+
+    monkeypatch.setattr("bt_web_report_cli.runtime._run_pnpm_install", fake_run_pnpm_install)
+
+    prepare_runtime_workspace(
+        project,
+        kind="preview",
+        renderer_source=renderer,
+        base_dir=app_support,
+    )
+
+    assert (renderer_runtime / "node_modules").is_dir()
+    assert not (renderer_runtime / "node_modules").is_symlink()
+
+
 def test_prepare_runtime_workspace_retries_transient_non_empty_cleanup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
