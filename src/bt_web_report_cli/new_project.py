@@ -15,9 +15,12 @@ from typing import Sequence
 import yaml
 
 from bt_web_report_cli.runtime import resolve_renderer_source
+from bt_web_report_schemas.project import SCHEMA_VERSION
 
 CONTENT_PAYLOAD = ("content", "data", "public", ".github", ".gitignore", ".dropboxignore", ".editorconfig", "README.md")
 IGNORED_EXISTING_NAMES = {".DS_Store", ".localized", "Icon\r", "desktop.ini", "Thumbs.db"}
+RENDERER_REF_ENV = "BTWR_RENDERER_REF"
+RENDERER_WORKFLOWS = (Path(".github/workflows/ci.yml"), Path(".github/workflows/deploy.yml"))
 
 
 @dataclass(frozen=True)
@@ -68,6 +71,8 @@ def create_project(
             shutil.copytree(item, destination, ignore=shutil.ignore_patterns("node_modules", "dist", ".astro"))
         else:
             shutil.copy2(item, destination)
+
+    _pin_renderer_workflows(target, _resolve_renderer_ref(source))
 
     _write_project_yaml(
         target,
@@ -148,7 +153,7 @@ def _write_project_yaml(
     if phpp is not None:
         phpp_path = os.path.relpath(phpp.expanduser().resolve(), target)
     value = {
-        "schema_version": "0.1.0",
+        "schema_version": SCHEMA_VERSION,
         "slug": slug,
         "project_title": title,
         "client_name": client or "TBD",
@@ -176,8 +181,51 @@ def _write_project_yaml(
             "production_url": production_url,
             "cloudflare_pages_project": cloudflare_pages_project,
         },
+        "narrative": {
+            "climate": {
+                "weather_station_name": "TBD",
+                "state_name": "TBD",
+                "ashrae_location_name": "TBD",
+            },
+        },
     }
     (target / "project.yaml").write_text(yaml.safe_dump(value, sort_keys=False))
+
+
+def _resolve_renderer_ref(source: Path) -> str:
+    override = os.environ.get(RENDERER_REF_ENV)
+    if override:
+        return override
+
+    result = _run_command(("git", "rev-parse", "HEAD"), cwd=source, check=False)
+    if result.returncode == 0:
+        ref = result.stdout.strip()
+        if ref:
+            return ref
+    return "main"
+
+
+def _pin_renderer_workflows(target: Path, renderer_ref: str) -> None:
+    for relative_path in RENDERER_WORKFLOWS:
+        workflow = target / relative_path
+        if not workflow.exists():
+            continue
+        lines = workflow.read_text().splitlines()
+        pinned: list[str] = []
+        index = 0
+        while index < len(lines):
+            line = lines[index]
+            pinned.append(line)
+            if line.strip() == "repository: bldgtyp/bt-web-report-template":
+                indent = line[: len(line) - len(line.lstrip())]
+                next_index = index + 1
+                if next_index < len(lines) and lines[next_index].lstrip().startswith("ref:"):
+                    pinned.append(f"{indent}ref: {renderer_ref}")
+                    index += 2
+                    continue
+                pinned.append(f"{indent}ref: {renderer_ref}")
+            index += 1
+        workflow.write_text("\n".join(pinned) + "\n")
 
 
 def _init_git(target: Path, *, git_executable: str = "git") -> None:

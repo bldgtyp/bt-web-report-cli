@@ -5,9 +5,16 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 from bt_web_report_cli.new_project import create_project, publish_project
-from bt_web_report_cli.runtime import TINA_CONTENT_ROOT_ENV, prepare_runtime_workspace, run_renderer_script
+from bt_web_report_cli.runtime import (
+    TINA_CONTENT_ROOT_ENV,
+    prepare_runtime_workspace,
+    run_renderer_script,
+    validate_project_yaml,
+)
+from bt_web_report_schemas.project import SCHEMA_VERSION
 
 
 def test_prepare_runtime_workspace_keeps_node_dependencies_outside_project(tmp_path: Path) -> None:
@@ -99,6 +106,23 @@ def test_prepare_runtime_workspace_replaces_stale_source_node_modules_symlink(
 
     assert (renderer_runtime / "node_modules").is_dir()
     assert not (renderer_runtime / "node_modules").is_symlink()
+
+
+def test_prepare_runtime_workspace_rejects_stale_project_schema(tmp_path: Path) -> None:
+    renderer = _make_renderer(tmp_path / "renderer")
+    project = _make_project(tmp_path / "Project" / "04_Web")
+    raw = yaml.safe_load((project / "project.yaml").read_text())
+    raw["schema_version"] = "0.1.0"
+    (project / "project.yaml").write_text(yaml.safe_dump(raw, sort_keys=False))
+
+    with pytest.raises(RuntimeError, match=r"schema_version.*0\.2\.0"):
+        prepare_runtime_workspace(
+            project,
+            kind="preview",
+            renderer_source=renderer,
+            base_dir=tmp_path / "support",
+            install=False,
+        )
 
 
 def test_prepare_runtime_workspace_retries_transient_non_empty_cleanup(
@@ -195,7 +219,46 @@ def test_create_project_copies_only_content_payload(tmp_path: Path) -> None:
     assert not (target / "package.json").exists()
     assert not (target / "src").exists()
     assert not (target / "node_modules").exists()
-    assert "phpp_path: ../07_PHPP/model.xlsx" in (target / "project.yaml").read_text()
+    project_yaml = yaml.safe_load((target / "project.yaml").read_text())
+    assert project_yaml["schema_version"] == SCHEMA_VERSION
+    assert project_yaml["source_files"]["phpp_path"] == "../07_PHPP/model.xlsx"
+    assert project_yaml["narrative"]["climate"]["weather_station_name"] == "TBD"
+    validate_project_yaml(target)
+
+
+def test_create_project_pins_renderer_workflows_to_resolved_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    renderer = _make_renderer(tmp_path / "renderer")
+    workflow = renderer / ".github" / "workflows" / "ci.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        "jobs:\n"
+        "  build:\n"
+        "    steps:\n"
+        "      - name: Checkout shared renderer\n"
+        "        uses: actions/checkout@v4\n"
+        "        with:\n"
+        "          repository: bldgtyp/bt-web-report-template\n"
+        "          path: renderer\n"
+    )
+    target = tmp_path / "Project" / "04_Web"
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
+
+    create_project(
+        target,
+        slug="project-2606",
+        title="2606 Vandam",
+        repo="bt-proj-2606-vandam",
+        production_url="https://project-2606.bldgtyp.com",
+        renderer_source=renderer,
+        init_git=False,
+    )
+
+    copied_workflow = (target / ".github" / "workflows" / "ci.yml").read_text()
+    assert (
+        "repository: bldgtyp/bt-web-report-template\n          ref: abc123\n          path: renderer" in copied_workflow
+    )
 
 
 def test_create_project_ignores_ds_store_in_existing_target(tmp_path: Path) -> None:
@@ -410,11 +473,45 @@ def _make_project(path: Path) -> Path:
     path.mkdir(parents=True)
     _write_project_payload(path)
     (path / "project.yaml").write_text(
-        "slug: sample\n"
-        "project_title: Sample\n"
-        "source_files:\n"
-        "  data_dir: data\n"
-        "  assets_dir: public/assets\n"
+        yaml.safe_dump(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "slug": "sample",
+                "project_title": "Sample",
+                "client_name": "Client",
+                "building_name": "Building",
+                "phase": "Design",
+                "report_date": "2026-05-21",
+                "prepared_by": "BLDGTYP",
+                "contact_email": "ed@bldgtyp.com",
+                "target_standard": "TBD",
+                "certification_program": "TBD",
+                "certification_path": "TBD",
+                "building": {
+                    "address": "TBD",
+                    "city": "TBD",
+                    "state": "TBD",
+                    "climate_zone": "TBD",
+                    "building_type": "TBD",
+                },
+                "source_files": {
+                    "data_dir": "data",
+                    "assets_dir": "public/assets",
+                },
+                "publishing": {
+                    "production_url": "https://sample.bldgtyp.com",
+                    "cloudflare_pages_project": "bt-proj-sample",
+                },
+                "narrative": {
+                    "climate": {
+                        "weather_station_name": "TBD",
+                        "state_name": "TBD",
+                        "ashrae_location_name": "TBD",
+                    },
+                },
+            },
+            sort_keys=False,
+        )
     )
     return path
 

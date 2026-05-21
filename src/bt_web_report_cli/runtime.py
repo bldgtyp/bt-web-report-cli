@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
+from pydantic import ValidationError
+
+from bt_web_report_schemas.project import Project
 
 APP_SUPPORT_ENV = "BTWR_APP_SUPPORT"
 MANAGER_APP_SUPPORT_ENV = "BTWR_MANAGER_APP_SUPPORT"
@@ -93,6 +96,24 @@ def project_slug(project_path: Path) -> str:
     return project_path.parent.name.lower().replace(" ", "-")
 
 
+def validate_project_yaml(project_path: Path) -> None:
+    """Fail fast when a content repo is not compatible with the renderer schema."""
+
+    project_file = project_path / "project.yaml"
+    if not project_file.exists():
+        raise RuntimeError(f"project.yaml does not exist: {project_path}")
+    raw = yaml.safe_load(project_file.read_text()) or {}
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"project.yaml must contain a mapping: {project_file}")
+    try:
+        Project.model_validate(raw)
+    except ValidationError as exc:
+        first_error = exc.errors()[0] if exc.errors() else {}
+        location = ".".join(str(part) for part in first_error.get("loc", ())) or "project.yaml"
+        message = first_error.get("msg", "invalid project.yaml")
+        raise RuntimeError(f"{project_file}: {location} {message}") from exc
+
+
 def ensure_renderer(
     *,
     renderer_source: Path | None = None,
@@ -133,8 +154,7 @@ def prepare_runtime_workspace(
     """Create a disposable symlink workspace for a content-only project."""
 
     resolved_project = project_path.expanduser().resolve()
-    if not (resolved_project / "project.yaml").exists():
-        raise RuntimeError(f"project.yaml does not exist: {resolved_project}")
+    validate_project_yaml(resolved_project)
 
     renderer = ensure_renderer(
         renderer_source=renderer_source,
