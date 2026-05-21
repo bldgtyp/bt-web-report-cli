@@ -14,6 +14,7 @@ from bt_web_report_cli.io.project import default_output_dir, resolve_workbook_pa
 from bt_web_report_cli.io.workbook_openpyxl import OpenpyxlWorkbookReader
 from bt_web_report_cli.phpp.transform import build_derived_tables, build_report_input_rows
 from bt_web_report_cli.phpp.write import VARIANTS_FIELDNAMES, csv_rows, write_report_data
+from bt_web_report_cli.runtime import validate_project_yaml
 
 
 def scrape_project(
@@ -29,6 +30,10 @@ def scrape_project(
     if reader_name != "openpyxl":
         msg = f"Unsupported reader '{reader_name}'. Phase 1 currently supports: openpyxl."
         raise ValueError(msg)
+
+    resolved_project = project_path.expanduser().resolve()
+    if resolved_project.is_dir():
+        validate_project_yaml(resolved_project)
 
     workbook_path = resolve_workbook_path(project_path, phpp_path)
     try:

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+import yaml
 from click.testing import CliRunner
 from openpyxl import Workbook
 
@@ -192,6 +193,20 @@ def test_scrape_unknown_version_fails_loudly(tmp_path: Path) -> None:
     assert "Unsupported PHPP version '10.7'" in result.output
 
 
+def test_scrape_project_path_rejects_stale_project_schema_before_writing_data(tmp_path: Path) -> None:
+    project = tmp_path / "Project" / "04_Web"
+    project.mkdir(parents=True)
+    (project / "project.yaml").write_text(yaml.safe_dump(_project_yaml("0.1.0"), sort_keys=False))
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["scrape", str(project)])
+
+    assert result.exit_code != 0
+    assert "schema_version" in result.output
+    assert "0.2.0" in result.output
+    assert not (project / "data").exists()
+
+
 def test_scrape_missing_workbook_fails_loudly(tmp_path: Path) -> None:
     runner = CliRunner()
 
@@ -272,6 +287,39 @@ def _scrape_fixture(workbook_path: Path, output_dir: Path) -> ScrapeOutput:
     result = runner.invoke(main, ["scrape", str(workbook_path), "--out", str(output_dir)])
     assert result.exit_code == 0, result.output
     return ScrapeOutput(data_dir=output_dir, command_output=result.output)
+
+
+def _project_yaml(schema_version: str) -> dict[str, object]:
+    return {
+        "schema_version": schema_version,
+        "slug": "project-2606",
+        "project_title": "2606 Vandam",
+        "client_name": "Client",
+        "building_name": "Building",
+        "phase": "Design Analysis",
+        "report_date": "2026-05-21",
+        "prepared_by": "BLDGTYP",
+        "contact_email": "ed@bldgtyp.com",
+        "target_standard": "TBD",
+        "certification_program": "TBD",
+        "certification_path": "TBD",
+        "building": {
+            "address": "TBD",
+            "city": "TBD",
+            "state": "TBD",
+            "climate_zone": "TBD",
+            "building_type": "TBD",
+        },
+        "source_files": {
+            "phpp_path": "../07_PHPP/model.xlsx",
+            "data_dir": "data",
+            "assets_dir": "public/assets",
+        },
+        "publishing": {
+            "production_url": "https://project-2606.bldgtyp.com",
+            "cloudflare_pages_project": "bt-proj-2606-vandam",
+        },
+    }
 
 
 def _assert_golden_csvs(actual_dir: Path, expected_dir: Path) -> None:
