@@ -36,6 +36,7 @@ RENDERER_PAYLOAD = (
     "tina",
     "tsconfig.json",
 )
+RENDERER_DEPENDENCY_INPUTS = ("package.json", "pnpm-lock.yaml")
 LOCAL_RENDERER_PAYLOAD = {"src", "tina"}
 PROJECT_PAYLOAD = ("project.yaml", "content", "data", "public")
 IGNORED_RENDERER_NAMES = {
@@ -126,9 +127,12 @@ def ensure_renderer(
     target = renderer_dir(base_dir)
     source = resolve_renderer_source(renderer_source)
     if source is not None:
+        dependencies_changed = _renderer_dependency_inputs_changed(source, target)
         _sync_renderer_source(source, target)
         target_node_modules = target / "node_modules"
         if target_node_modules.is_symlink():
+            _remove(target_node_modules)
+        elif dependencies_changed and target_node_modules.exists():
             _remove(target_node_modules)
     elif not (target / "package.json").exists():
         msg = (
@@ -237,6 +241,17 @@ def _sync_renderer_source(source: Path, target: Path) -> None:
             shutil.copytree(item, destination, ignore=shutil.ignore_patterns(*IGNORED_RENDERER_NAMES))
         else:
             shutil.copy2(item, destination)
+
+
+def _renderer_dependency_inputs_changed(source: Path, target: Path) -> bool:
+    for name in RENDERER_DEPENDENCY_INPUTS:
+        source_file = source / name
+        target_file = target / name
+        if source_file.exists() != target_file.exists():
+            return True
+        if source_file.exists() and source_file.read_bytes() != target_file.read_bytes():
+            return True
+    return False
 
 
 def _install_renderer_dependencies(target: Path, pnpm_executable: str) -> None:
