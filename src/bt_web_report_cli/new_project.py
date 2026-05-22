@@ -194,16 +194,28 @@ def _write_project_yaml(
 
 
 def _resolve_renderer_ref(source: Path) -> str:
-    override = os.environ.get(RENDERER_REF_ENV)
-    if override:
-        return override
+    """Resolve the ref to pin per-project workflows to.
 
-    result = _run_command(("git", "rev-parse", "HEAD"), cwd=source, check=False)
-    if result.returncode == 0:
-        ref = result.stdout.strip()
-        if ref:
-            return ref
-    return "main"
+    Default is the literal string ``main`` so per-project repos automatically
+    pick up template improvements (schema fixes, retry-policy tweaks, etc.)
+    on their next CI run. To pin a per-project repo to a specific commit
+    (e.g. while debugging a template regression), set BTWR_RENDERER_REF.
+
+    The legacy behaviour (pin to renderer HEAD SHA at creation time) is
+    available by setting BTWR_RENDERER_REF=HEAD.
+    """
+
+    override = os.environ.get(RENDERER_REF_ENV)
+    if not override:
+        return "main"
+    if override.upper() == "HEAD":
+        result = _run_command(("git", "rev-parse", "HEAD"), cwd=source, check=False)
+        if result.returncode == 0:
+            ref = result.stdout.strip()
+            if ref:
+                return ref
+        return "main"
+    return override
 
 
 _LOCAL_REUSABLE_PREFIX = "uses: ./.github/workflows/"
