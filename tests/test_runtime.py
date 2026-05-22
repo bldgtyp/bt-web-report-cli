@@ -9,6 +9,7 @@ import yaml
 
 from bt_web_report_cli.new_project import create_project, publish_project
 from bt_web_report_cli.runtime import (
+    PROJECT_SCHEMA_JSON_ENV,
     TINA_CONTENT_ROOT_ENV,
     prepare_runtime_workspace,
     run_renderer_script,
@@ -239,6 +240,45 @@ def test_run_renderer_script_points_tina_at_project_content(tmp_path: Path, monk
     env = calls[0]["env"]
     assert isinstance(env, dict)
     assert env[TINA_CONTENT_ROOT_ENV] == os.path.relpath(project.resolve(), workspace.workspace_path / "tina")
+
+
+def test_run_renderer_script_points_local_renderer_at_sibling_project_schema(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace_root = tmp_path / "workspace"
+    renderer = _make_renderer(workspace_root / "bt-web-report-template")
+    schema = workspace_root / "bt-web-report-schemas" / "schemas" / "project.schema.json"
+    schema.parent.mkdir(parents=True)
+    schema.write_text("{}\n")
+    project = _make_project(tmp_path / "Project" / "04_Web")
+    app_support = tmp_path / "support"
+    calls: list[dict[str, object]] = []
+
+    def fake_run(
+        args: tuple[str, str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        text: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append({"args": args, "cwd": cwd, "env": env, "text": text, "check": check})
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr("bt_web_report_cli.runtime.subprocess.run", fake_run)
+
+    run_renderer_script(
+        project,
+        "build",
+        kind="build",
+        renderer_source=renderer,
+        base_dir=app_support,
+        install=False,
+    )
+
+    env = calls[0]["env"]
+    assert isinstance(env, dict)
+    assert env[PROJECT_SCHEMA_JSON_ENV] == str(schema.resolve())
 
 
 def test_create_project_copies_only_content_payload(tmp_path: Path) -> None:

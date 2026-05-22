@@ -20,6 +20,7 @@ from bt_web_report_schemas.project import Project
 APP_SUPPORT_ENV = "BTWR_APP_SUPPORT"
 MANAGER_APP_SUPPORT_ENV = "BTWR_MANAGER_APP_SUPPORT"
 RENDERER_SOURCE_ENV = "BTWR_RENDERER_SOURCE"
+PROJECT_SCHEMA_JSON_ENV = "BTWR_PROJECT_SCHEMA_JSON"
 TINA_CONTENT_ROOT_ENV = "BTWR_TINA_CONTENT_ROOT"
 
 APP_SUPPORT_DEFAULT = Path("~/Library/Application Support/bt-web-report-manager").expanduser()
@@ -203,20 +204,33 @@ def run_renderer_script(
     pnpm_executable: str = "pnpm",
     install: bool = True,
 ) -> RuntimeWorkspace:
+    source = resolve_renderer_source(renderer_source)
     workspace = prepare_runtime_workspace(
         project_path,
         kind=kind,
-        renderer_source=renderer_source,
+        renderer_source=source,
         base_dir=base_dir,
         pnpm_executable=pnpm_executable,
         install=install,
     )
     env = os.environ.copy()
     env[TINA_CONTENT_ROOT_ENV] = os.path.relpath(workspace.project_path, workspace.workspace_path / "tina")
+    project_schema_json = _project_schema_json_for_renderer_source(source)
+    if project_schema_json is not None:
+        env[PROJECT_SCHEMA_JSON_ENV] = str(project_schema_json)
     result = subprocess.run((pnpm_executable, script), cwd=workspace.workspace_path, env=env, text=True, check=False)
     if result.returncode != 0:
         raise RuntimeError(f"Renderer script '{script}' failed with exit {result.returncode}.")
     return workspace
+
+
+def _project_schema_json_for_renderer_source(source: Path | None) -> Path | None:
+    if source is None:
+        return None
+    candidate = source.parent / "bt-web-report-schemas" / "schemas" / "project.schema.json"
+    if candidate.exists():
+        return candidate.resolve()
+    return None
 
 
 def _sync_renderer_source(source: Path, target: Path) -> None:
