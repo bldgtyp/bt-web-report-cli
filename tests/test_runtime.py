@@ -388,6 +388,44 @@ def test_create_project_pins_legacy_repository_block(tmp_path: Path, monkeypatch
     )
 
 
+def test_resolve_renderer_ref_defaults_to_main(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default behaviour: per-project repos pin to @main so template fixes propagate automatically."""
+
+    from bt_web_report_cli.new_project import RENDERER_REF_ENV, _resolve_renderer_ref
+
+    monkeypatch.delenv(RENDERER_REF_ENV, raising=False)
+    assert _resolve_renderer_ref(tmp_path) == "main"
+
+
+def test_resolve_renderer_ref_explicit_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit BTWR_RENDERER_REF wins over the @main default."""
+
+    from bt_web_report_cli.new_project import RENDERER_REF_ENV, _resolve_renderer_ref
+
+    monkeypatch.setenv(RENDERER_REF_ENV, "v1.2.3")
+    assert _resolve_renderer_ref(tmp_path) == "v1.2.3"
+
+
+def test_resolve_renderer_ref_head_resolves_to_sha(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Legacy "pin to HEAD" behaviour stays available via BTWR_RENDERER_REF=HEAD."""
+
+    from bt_web_report_cli.new_project import RENDERER_REF_ENV, _resolve_renderer_ref
+
+    monkeypatch.setenv(RENDERER_REF_ENV, "HEAD")
+    fake = {"value": "deadbeef"}
+
+    def fake_run(*args, **kwargs):
+        class R:
+            returncode = 0
+            stdout = fake["value"]
+            stderr = ""
+
+        return R()
+
+    monkeypatch.setattr("bt_web_report_cli.new_project._run_command", fake_run)
+    assert _resolve_renderer_ref(tmp_path) == "deadbeef"
+
+
 def test_create_project_ignores_ds_store_in_existing_target(tmp_path: Path) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
     target = tmp_path / "Project" / "04_Web"
