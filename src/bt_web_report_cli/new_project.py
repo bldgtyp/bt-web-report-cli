@@ -18,6 +18,7 @@ from bt_web_report_cli.runtime import resolve_renderer_source
 from bt_web_report_schemas.project import SCHEMA_VERSION
 
 CONTENT_PAYLOAD = ("content", "data", "public", ".github", ".gitignore", ".dropboxignore", ".editorconfig", "README.md")
+IGNORED_TEMPLATE_CONTENT_NAMES = {"node_modules", "dist", ".astro", "recommended-assemblies.zip"}
 IGNORED_EXISTING_NAMES = {".DS_Store", ".localized", "Icon\r", "desktop.ini", "Thumbs.db"}
 RENDERER_REF_ENV = "BTWR_RENDERER_REF"
 RENDERER_WORKFLOWS = (Path(".github/workflows/ci.yml"), Path(".github/workflows/deploy.yml"))
@@ -68,7 +69,7 @@ def create_project(
             continue
         destination = target / name
         if item.is_dir():
-            shutil.copytree(item, destination, ignore=shutil.ignore_patterns("node_modules", "dist", ".astro"))
+            shutil.copytree(item, destination, ignore=shutil.ignore_patterns(*IGNORED_TEMPLATE_CONTENT_NAMES))
         else:
             shutil.copy2(item, destination)
 

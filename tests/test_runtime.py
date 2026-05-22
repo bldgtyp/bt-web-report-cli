@@ -243,6 +243,9 @@ def test_run_renderer_script_points_tina_at_project_content(tmp_path: Path, monk
 
 def test_create_project_copies_only_content_payload(tmp_path: Path) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
+    stale_archive = renderer / "public" / "assets" / "envelope" / "assemblies" / "recommended-assemblies.zip"
+    stale_archive.parent.mkdir(parents=True)
+    stale_archive.write_text("stale zip")
     target = tmp_path / "Project" / "04_Web"
     phpp = tmp_path / "Project" / "07_PHPP" / "model.xlsx"
     phpp.parent.mkdir(parents=True)
@@ -262,6 +265,7 @@ def test_create_project_copies_only_content_payload(tmp_path: Path) -> None:
     assert (target / "project.yaml").exists()
     assert (target / "content" / "summary.mdx").exists()
     assert (target / "data" / "manifest.json").exists()
+    assert not (target / "public" / "assets" / "envelope" / "assemblies" / "recommended-assemblies.zip").exists()
     assert not (target / "package.json").exists()
     assert not (target / "src").exists()
     assert not (target / "node_modules").exists()
