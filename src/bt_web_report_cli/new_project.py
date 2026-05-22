@@ -206,7 +206,25 @@ def _resolve_renderer_ref(source: Path) -> str:
     return "main"
 
 
+_LOCAL_REUSABLE_PREFIX = "uses: ./.github/workflows/"
+_CROSS_REPO_USES_TEMPLATE = "uses: bldgtyp/bt-web-report-template/.github/workflows/{name}@{ref}"
+
+
 def _pin_renderer_workflows(target: Path, renderer_ref: str) -> None:
+    """Rewrite per-project workflow files so they call the template's reusable
+    workflow cross-repo at the pinned renderer ref.
+
+    The template repo's own workflows reference the reusable workflow as
+    ``uses: ./.github/workflows/_renderer-build.yml``. Per-project repos don't
+    have that file locally; they need to call it cross-repo as
+    ``uses: bldgtyp/bt-web-report-template/.github/workflows/_renderer-build.yml@<ref>``.
+
+    Also pins any ``renderer-ref: ${{ github.sha }}`` and legacy
+    ``repository: bldgtyp/bt-web-report-template`` blocks to the resolved ref,
+    so the per-project repo always uses the same template revision it was
+    created from.
+    """
+
     for relative_path in RENDERER_WORKFLOWS:
         workflow = target / relative_path
         if not workflow.exists():
@@ -216,9 +234,23 @@ def _pin_renderer_workflows(target: Path, renderer_ref: str) -> None:
         index = 0
         while index < len(lines):
             line = lines[index]
+            stripped = line.lstrip()
+            indent = line[: len(line) - len(stripped)]
+
+            if stripped.startswith(_LOCAL_REUSABLE_PREFIX):
+                workflow_name = stripped[len(_LOCAL_REUSABLE_PREFIX) :]
+                pinned.append(indent + _CROSS_REPO_USES_TEMPLATE.format(name=workflow_name, ref=renderer_ref))
+                index += 1
+                continue
+
+            if stripped.startswith("renderer-ref:"):
+                pinned.append(f"{indent}renderer-ref: {renderer_ref}")
+                index += 1
+                continue
+
             pinned.append(line)
-            if line.strip() == "repository: bldgtyp/bt-web-report-template":
-                indent = line[: len(line) - len(line.lstrip())]
+
+            if stripped == "repository: bldgtyp/bt-web-report-template":
                 next_index = index + 1
                 if next_index < len(lines) and lines[next_index].lstrip().startswith("ref:"):
                     pinned.append(f"{indent}ref: {renderer_ref}")

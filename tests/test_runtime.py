@@ -316,9 +316,46 @@ def test_create_project_copies_only_content_payload(tmp_path: Path) -> None:
     validate_project_yaml(target)
 
 
-def test_create_project_pins_renderer_workflows_to_resolved_ref(
+def test_create_project_pins_reusable_workflow_to_resolved_ref(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    renderer = _make_renderer(tmp_path / "renderer")
+    workflow = renderer / ".github" / "workflows" / "ci.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        "jobs:\n"
+        "  build:\n"
+        "    uses: ./.github/workflows/_renderer-build.yml\n"
+        "    with:\n"
+        "      project-repo: ${{ github.repository }}\n"
+        "      project-ref: ${{ github.ref }}\n"
+        "      renderer-ref: ${{ github.sha }}\n"
+        "      schemas-ref: main\n"
+        "      run-deploy: false\n"
+    )
+    target = tmp_path / "Project" / "04_Web"
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
+
+    create_project(
+        target,
+        slug="project-2606",
+        title="2606 Vandam",
+        repo="bt-proj-2606-vandam",
+        production_url="https://project-2606.bldgtyp.com",
+        renderer_source=renderer,
+        init_git=False,
+    )
+
+    copied_workflow = (target / ".github" / "workflows" / "ci.yml").read_text()
+    assert "uses: bldgtyp/bt-web-report-template/.github/workflows/_renderer-build.yml@abc123" in copied_workflow
+    assert "renderer-ref: abc123" in copied_workflow
+    assert "renderer-ref: ${{ github.sha }}" not in copied_workflow
+    assert "./.github/workflows/_renderer-build.yml" not in copied_workflow
+
+
+def test_create_project_pins_legacy_repository_block(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Back-compat: still pins the old (pre-reusable-workflow) structure if encountered."""
+
     renderer = _make_renderer(tmp_path / "renderer")
     workflow = renderer / ".github" / "workflows" / "ci.yml"
     workflow.parent.mkdir(parents=True)
