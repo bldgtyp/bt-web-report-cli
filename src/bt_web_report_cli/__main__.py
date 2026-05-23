@@ -8,7 +8,8 @@ import click
 from bt_web_report_cli.assets import create_image_pair
 from bt_web_report_cli.new_project import create_project, publish_project
 from bt_web_report_cli.pin_project import PinError, pin_project, workflow_pin_status
-from bt_web_report_cli.runtime import app_support_dir, run_pnpm_script
+from bt_web_report_cli.re_seed import ReSeedError, apply_re_seed, plan_re_seed, render_plan_text
+from bt_web_report_cli.runtime import app_support_dir, resolve_renderer_source, run_pnpm_script
 from bt_web_report_cli.scrape import scrape_project
 
 
@@ -324,6 +325,76 @@ def pin(
         click.echo(f"missing {relative}")
     if not result.files_changed:
         click.echo("no changes written")
+
+
+@main.command("re-seed")
+@click.argument("project_path", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option(
+    "--renderer-source",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Path to the bt-web-report-template checkout. Defaults to BTWR_RENDERER_SOURCE.",
+)
+@click.option(
+    "--from",
+    "from_ref",
+    help="Target template ref (SHA or tag). Defaults to the template checkout's current HEAD.",
+)
+@click.option("--dry-run", is_flag=True, help="Show the diff and exit without writing.")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
+@click.option("--no-commit", is_flag=True, help="Apply the diff but do not git commit.")
+def re_seed(
+    project_path: Path,
+    renderer_source: Path | None,
+    from_ref: str | None,
+    dry_run: bool,
+    yes: bool,
+    no_commit: bool,
+) -> None:
+    """Update a project's vendored renderer to a newer template ref.
+
+    Re-seeds are expected to be rare — once a site is live, the renderer
+    usually stays put. When you do need to bring in a renderer fix:
+
+      btwr re-seed <project> --renderer-source <template> [--from <SHA>]
+
+    Authored content (content/, data/, public/, project.yaml) is never
+    overwritten. The command prints a unified diff of vendored-file changes
+    before asking for confirmation; on confirm it applies the writes and
+    commits with a single ``chore(renderer): re-seed to template@<sha>``
+    commit. ``--dry-run`` skips the write step entirely.
+    """
+
+    template = resolve_renderer_source(renderer_source)
+    if template is None:
+        raise click.UsageError(
+            "Cannot locate the template — set --renderer-source or BTWR_RENDERER_SOURCE."
+        )
+
+    try:
+        plan = plan_re_seed(project_path, template_path=template, target_ref=from_ref)
+    except ReSeedError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(render_plan_text(plan))
+
+    if plan.is_noop:
+        return
+
+    if dry_run:
+        click.echo("--dry-run requested; no changes written.")
+        return
+
+    if not yes:
+        if not click.confirm("Apply these changes?", default=False):
+            click.echo("re-seed cancelled.")
+            return
+
+    try:
+        written = apply_re_seed(plan, commit=not no_commit)
+    except ReSeedError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(f"re-seed applied: {written} file(s) written; renderer_seed_ref={plan.target_ref}")
 
 
 if __name__ == "__main__":
