@@ -281,7 +281,7 @@ def test_run_renderer_script_points_local_renderer_at_sibling_project_schema(
     assert env[PROJECT_SCHEMA_JSON_ENV] == str(schema.resolve())
 
 
-def test_create_project_copies_only_content_payload(tmp_path: Path) -> None:
+def test_create_project_copies_only_content_payload(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
     stale_archive = renderer / "public" / "assets" / "envelope" / "assemblies" / "recommended-assemblies.zip"
     stale_archive.parent.mkdir(parents=True)
@@ -290,6 +290,7 @@ def test_create_project_copies_only_content_payload(tmp_path: Path) -> None:
     phpp = tmp_path / "Project" / "07_PHPP" / "model.xlsx"
     phpp.parent.mkdir(parents=True)
     phpp.write_text("fixture")
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
 
     create_project(
         target,
@@ -388,13 +389,28 @@ def test_create_project_pins_legacy_repository_block(tmp_path: Path, monkeypatch
     )
 
 
-def test_resolve_renderer_ref_defaults_to_main(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Default behaviour: per-project repos pin to @main so template fixes propagate automatically."""
+def test_resolve_renderer_ref_refuses_unspecified_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Floating 'main' is no longer a legal default — Phase 1 cascade stop."""
 
     from bt_web_report_cli.new_project import RENDERER_REF_ENV, _resolve_renderer_ref
 
     monkeypatch.delenv(RENDERER_REF_ENV, raising=False)
-    assert _resolve_renderer_ref(tmp_path) == "main"
+    with pytest.raises(RuntimeError, match=RENDERER_REF_ENV):
+        _resolve_renderer_ref(tmp_path)
+
+
+def test_resolve_renderer_ref_refuses_floating_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Setting BTWR_RENDERER_REF=main is also rejected to prevent accidental cascade."""
+
+    from bt_web_report_cli.new_project import RENDERER_REF_ENV, _resolve_renderer_ref
+
+    monkeypatch.setenv(RENDERER_REF_ENV, "main")
+    with pytest.raises(RuntimeError, match="floating branch"):
+        _resolve_renderer_ref(tmp_path)
 
 
 def test_resolve_renderer_ref_explicit_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -426,11 +442,14 @@ def test_resolve_renderer_ref_head_resolves_to_sha(tmp_path: Path, monkeypatch: 
     assert _resolve_renderer_ref(tmp_path) == "deadbeef"
 
 
-def test_create_project_ignores_ds_store_in_existing_target(tmp_path: Path) -> None:
+def test_create_project_ignores_ds_store_in_existing_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
     target = tmp_path / "Project" / "04_Web"
     target.mkdir(parents=True)
     (target / ".DS_Store").write_text("finder")
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
 
     create_project(
         target,
@@ -446,11 +465,14 @@ def test_create_project_ignores_ds_store_in_existing_target(tmp_path: Path) -> N
     assert (target / ".DS_Store").exists()
 
 
-def test_create_project_requires_overwrite_for_real_existing_content(tmp_path: Path) -> None:
+def test_create_project_requires_overwrite_for_real_existing_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
     target = tmp_path / "Project" / "04_Web"
     target.mkdir(parents=True)
     (target / "old.md").write_text("old")
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
 
     with pytest.raises(RuntimeError, match="not empty"):
         create_project(

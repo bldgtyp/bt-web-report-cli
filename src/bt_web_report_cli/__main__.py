@@ -7,6 +7,7 @@ import click
 
 from bt_web_report_cli.assets import create_image_pair
 from bt_web_report_cli.new_project import create_project, publish_project
+from bt_web_report_cli.pin_project import PinError, pin_project, workflow_pin_status
 from bt_web_report_cli.runtime import app_support_dir, prepare_runtime_workspace, run_renderer_script
 from bt_web_report_cli.scrape import scrape_project
 
@@ -280,6 +281,61 @@ def prepare_runtime(
     except Exception as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(workspace.workspace_path)
+
+
+@main.command()
+@click.argument("project_path", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option("--renderer", "renderer_ref", required=True, help="Renderer (template) SHA or tag to pin.")
+@click.option("--schemas", "schemas_ref", required=True, help="Schemas SHA or tag to pin.")
+@click.option(
+    "--workflow",
+    "workflow_ref",
+    help="Reusable-workflow SHA or tag. Defaults to --renderer.",
+)
+@click.option("--show", is_flag=True, help="Print the current pin state and exit without writing.")
+def pin(
+    project_path: Path,
+    renderer_ref: str,
+    schemas_ref: str,
+    workflow_ref: str | None,
+    show: bool,
+) -> None:
+    """Pin a per-project repo's workflows to explicit SHAs.
+
+    Rewrites ``.github/workflows/{ci,deploy}.yml`` to replace floating ``main``
+    refs with the provided SHAs. Idempotent: re-running with the same refs
+    produces zero diff. Project values like ``cloudflare-pages-project`` are
+    not touched.
+    """
+
+    if show:
+        status = workflow_pin_status(project_path)
+        if not status:
+            raise click.ClickException(f"No workflows found in {project_path}/.github/workflows/")
+        for relative, info in status.items():
+            click.echo(f"{relative}:")
+            for label, value in info.items():
+                click.echo(f"  {label}: {value if value is not None else '(missing)'}")
+        return
+
+    try:
+        result = pin_project(
+            project_path,
+            renderer_ref=renderer_ref,
+            schemas_ref=schemas_ref,
+            workflow_ref=workflow_ref,
+        )
+    except PinError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    for relative in result.files_changed:
+        click.echo(f"pinned {relative}")
+    for relative in result.files_unchanged:
+        click.echo(f"unchanged {relative} (already at target refs)")
+    for relative in result.files_missing:
+        click.echo(f"missing {relative}")
+    if not result.files_changed:
+        click.echo("no changes written")
 
 
 if __name__ == "__main__":

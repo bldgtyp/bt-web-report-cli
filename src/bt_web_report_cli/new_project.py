@@ -194,27 +194,35 @@ def _write_project_yaml(
 
 
 def _resolve_renderer_ref(source: Path) -> str:
-    """Resolve the ref to pin per-project workflows to.
+    """Resolve the explicit ref to pin per-project workflows to.
 
-    Default is the literal string ``main`` so per-project repos automatically
-    pick up template improvements (schema fixes, retry-policy tweaks, etc.)
-    on their next CI run. To pin a per-project repo to a specific commit
-    (e.g. while debugging a template regression), set BTWR_RENDERER_REF.
-
-    The legacy behaviour (pin to renderer HEAD SHA at creation time) is
-    available by setting BTWR_RENDERER_REF=HEAD.
+    Floating ``main`` is no longer a legal default: every new project must be
+    seeded against a deterministic ref. Callers either set
+    :data:`RENDERER_REF_ENV` to an explicit SHA / tag, or to ``HEAD`` to mean
+    "resolve to the current SHA of the renderer source's working tree."
     """
 
     override = os.environ.get(RENDERER_REF_ENV)
     if not override:
-        return "main"
+        raise RuntimeError(
+            f"{RENDERER_REF_ENV} must be set to an explicit ref (SHA or tag) or 'HEAD'. "
+            "Floating 'main' is no longer accepted because it causes cross-project "
+            "cascade redeploys when the template changes."
+        )
     if override.upper() == "HEAD":
         result = _run_command(("git", "rev-parse", "HEAD"), cwd=source, check=False)
         if result.returncode == 0:
             ref = result.stdout.strip()
             if ref:
                 return ref
-        return "main"
+        raise RuntimeError(
+            f"{RENDERER_REF_ENV}=HEAD requested but `git rev-parse HEAD` failed in {source}"
+        )
+    if override in {"main", "master"}:
+        raise RuntimeError(
+            f"{RENDERER_REF_ENV}={override!r} is a floating branch — pin to an explicit "
+            "SHA or tag instead."
+        )
     return override
 
 
