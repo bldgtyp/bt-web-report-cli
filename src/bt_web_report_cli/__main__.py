@@ -8,7 +8,7 @@ import click
 from bt_web_report_cli.assets import create_image_pair
 from bt_web_report_cli.new_project import create_project, publish_project
 from bt_web_report_cli.pin_project import PinError, pin_project, workflow_pin_status
-from bt_web_report_cli.runtime import app_support_dir, prepare_runtime_workspace, run_renderer_script
+from bt_web_report_cli.runtime import app_support_dir, run_pnpm_script
 from bt_web_report_cli.scrape import scrape_project
 
 
@@ -193,94 +193,79 @@ def new(
         click.echo(f"{action}: {result.repo_full_name} ({result.remote_url})")
 
 
-@main.command()
-@click.argument("project_path", type=click.Path(exists=True, path_type=Path))
-@click.option("--renderer-source", type=click.Path(exists=True, file_okay=False, path_type=Path))
-@click.option("--pnpm", "pnpm_executable", default="pnpm", show_default=True)
-@click.option("--skip-install", is_flag=True, help="Do not install renderer dependencies.")
-def build(project_path: Path, renderer_source: Path | None, pnpm_executable: str, skip_install: bool) -> None:
-    """Build a project through the shared app-support renderer."""
+def _warn_deprecated_renderer_source(renderer_source: Path | None) -> None:
+    """Manager builds mid-update may still pass --renderer-source for build/preview/editor.
 
-    try:
-        workspace = run_renderer_script(
-            project_path,
-            "build",
-            kind="build",
-            renderer_source=renderer_source,
-            pnpm_executable=pnpm_executable,
-            install=not skip_install,
+    Honor the call shape (don't break Manager) but emit a warning so the next
+    Manager release drops it. Removed entirely once Manager v >= the Phase-4
+    release is in use.
+    """
+
+    if renderer_source is not None:
+        click.echo(
+            "warning: --renderer-source is deprecated for build/preview/editor "
+            "(the project directory is the runtime now). The flag is ignored; "
+            "update your Manager build.",
+            err=True,
         )
-    except Exception as exc:
-        raise click.ClickException(str(exc)) from exc
-    click.echo(f"built {project_path}: {workspace.workspace_path / 'dist'}")
 
 
 @main.command()
-@click.argument("project_path", type=click.Path(exists=True, path_type=Path))
-@click.option("--renderer-source", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.argument("project_path", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option(
+    "--renderer-source",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="(deprecated, ignored) The project directory is the runtime now.",
+    hidden=True,
+)
 @click.option("--pnpm", "pnpm_executable", default="pnpm", show_default=True)
-@click.option("--skip-install", is_flag=True, help="Do not install renderer dependencies.")
-def preview(project_path: Path, renderer_source: Path | None, pnpm_executable: str, skip_install: bool) -> None:
-    """Run the Astro dev server from a disposable preview workspace."""
+def build(project_path: Path, renderer_source: Path | None, pnpm_executable: str) -> None:
+    """Build a vendored project — runs ``pnpm run build`` in the project."""
 
+    _warn_deprecated_renderer_source(renderer_source)
     try:
-        run_renderer_script(
-            project_path,
-            "dev",
-            kind="preview",
-            renderer_source=renderer_source,
-            pnpm_executable=pnpm_executable,
-            install=not skip_install,
-        )
+        run_pnpm_script(project_path, "build", pnpm_executable=pnpm_executable)
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"built {project_path}: {project_path / 'dist'}")
+
+
+@main.command()
+@click.argument("project_path", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option(
+    "--renderer-source",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="(deprecated, ignored) The project directory is the runtime now.",
+    hidden=True,
+)
+@click.option("--pnpm", "pnpm_executable", default="pnpm", show_default=True)
+def preview(project_path: Path, renderer_source: Path | None, pnpm_executable: str) -> None:
+    """Run the Astro dev server in the project directory."""
+
+    _warn_deprecated_renderer_source(renderer_source)
+    try:
+        run_pnpm_script(project_path, "dev", pnpm_executable=pnpm_executable)
     except Exception as exc:
         raise click.ClickException(str(exc)) from exc
 
 
 @main.command()
-@click.argument("project_path", type=click.Path(exists=True, path_type=Path))
-@click.option("--renderer-source", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.argument("project_path", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option(
+    "--renderer-source",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="(deprecated, ignored) The project directory is the runtime now.",
+    hidden=True,
+)
 @click.option("--pnpm", "pnpm_executable", default="pnpm", show_default=True)
-@click.option("--skip-install", is_flag=True, help="Do not install renderer dependencies.")
-def editor(project_path: Path, renderer_source: Path | None, pnpm_executable: str, skip_install: bool) -> None:
-    """Run the Tina local editor from a disposable preview workspace."""
+def editor(project_path: Path, renderer_source: Path | None, pnpm_executable: str) -> None:
+    """Run the Tina local editor in the project directory."""
 
+    _warn_deprecated_renderer_source(renderer_source)
     try:
-        run_renderer_script(
-            project_path,
-            "dev:editor",
-            kind="preview",
-            renderer_source=renderer_source,
-            pnpm_executable=pnpm_executable,
-            install=not skip_install,
-        )
+        run_pnpm_script(project_path, "dev:editor", pnpm_executable=pnpm_executable)
     except Exception as exc:
         raise click.ClickException(str(exc)) from exc
-
-
-@main.command("prepare-runtime")
-@click.argument("project_path", type=click.Path(exists=True, path_type=Path))
-@click.option("--renderer-source", type=click.Path(exists=True, file_okay=False, path_type=Path))
-@click.option("--pnpm", "pnpm_executable", default="pnpm", show_default=True)
-@click.option("--skip-install", is_flag=True, help="Do not install renderer dependencies.")
-def prepare_runtime(
-    project_path: Path,
-    renderer_source: Path | None,
-    pnpm_executable: str,
-    skip_install: bool,
-) -> None:
-    """Prepare and print the disposable runtime workspace path."""
-
-    try:
-        workspace = prepare_runtime_workspace(
-            project_path,
-            kind="build",
-            renderer_source=renderer_source,
-            pnpm_executable=pnpm_executable,
-            install=not skip_install,
-        )
-    except Exception as exc:
-        raise click.ClickException(str(exc)) from exc
-    click.echo(workspace.workspace_path)
 
 
 @main.command()

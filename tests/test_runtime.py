@@ -1,6 +1,3 @@
-import errno
-import os
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -9,276 +6,115 @@ import yaml
 
 from bt_web_report_cli.new_project import create_project, publish_project
 from bt_web_report_cli.runtime import (
-    PROJECT_SCHEMA_JSON_ENV,
-    TINA_CONTENT_ROOT_ENV,
-    prepare_runtime_workspace,
-    run_renderer_script,
+    run_pnpm_script,
     validate_project_yaml,
 )
 from bt_web_report_schemas.project import SCHEMA_VERSION
 
 
-def test_prepare_runtime_workspace_keeps_node_dependencies_outside_project(tmp_path: Path) -> None:
-    renderer = _make_renderer(tmp_path / "renderer")
-    project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
-
-    workspace = prepare_runtime_workspace(
-        project,
-        kind="build",
-        renderer_source=renderer,
-        base_dir=app_support,
-        install=False,
-    )
-
-    assert workspace.renderer_path == app_support / "renderer" / "current"
-    assert workspace.workspace_path == app_support / "builds" / "sample"
-    assert (workspace.workspace_path / "package.json").is_symlink()
-    assert not (workspace.workspace_path / "src").is_symlink()
-    assert not (workspace.workspace_path / "tina").is_symlink()
-    assert (workspace.workspace_path / "tina" / "__generated__" / "_lookup.json").exists()
-    assert (workspace.workspace_path / "src" / "pages" / "index.astro").exists()
-    assert (workspace.workspace_path / "content").resolve() == (project / "content").resolve()
-    assert not (project / "node_modules").exists()
-    assert not (project / "package.json").exists()
-
-
-def test_prepare_runtime_workspace_installs_app_support_dependencies_instead_of_symlinking_source(
+def test_run_pnpm_script_runs_pnpm_in_project_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
-    project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
-    installed: list[Path] = []
-    monkeypatch.setenv("NODE_AUTH_TOKEN", "test-token")
-
-    def fake_run_pnpm_install(
-        target: Path,
-        pnpm_executable: str,
-        env: dict[str, str],
-    ) -> subprocess.CompletedProcess[str]:
-        installed.append(target)
-        (target / "node_modules").mkdir()
-        return subprocess.CompletedProcess((pnpm_executable, "install"), 0)
-
-    monkeypatch.setattr("bt_web_report_cli.runtime._run_pnpm_install", fake_run_pnpm_install)
-
-    workspace = prepare_runtime_workspace(
-        project,
-        kind="preview",
+    target = tmp_path / "Project" / "04_Web"
+    create_project(
+        target,
+        slug="project-sample",
+        title="Sample",
+        repo="bt-proj-sample",
+        production_url="https://sample.bldgtyp.com",
         renderer_source=renderer,
-        base_dir=app_support,
+        init_git=False,
     )
+    calls: list[dict[str, object]] = []
 
-    renderer_runtime = app_support / "renderer" / "current"
-    assert installed == [renderer_runtime]
-    assert (renderer_runtime / "node_modules").is_dir()
-    assert not (renderer_runtime / "node_modules").is_symlink()
-    assert (workspace.workspace_path / "node_modules").resolve() == (renderer_runtime / "node_modules").resolve()
+    def fake_run(args, *, cwd, text, check):
+        calls.append({"args": tuple(args), "cwd": cwd})
+        return subprocess.CompletedProcess(args, 0)
 
+    monkeypatch.setattr("bt_web_report_cli.runtime.subprocess.run", fake_run)
 
-def test_prepare_runtime_workspace_reinstalls_when_renderer_dependency_inputs_change(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    renderer = _make_renderer(tmp_path / "renderer")
-    project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
-    installed: list[Path] = []
-    monkeypatch.setenv("NODE_AUTH_TOKEN", "test-token")
+    run_pnpm_script(target, "build")
 
-    def fake_run_pnpm_install(
-        target: Path,
-        pnpm_executable: str,
-        env: dict[str, str],
-    ) -> subprocess.CompletedProcess[str]:
-        installed.append(target)
-        (target / "node_modules").mkdir()
-        (target / "node_modules" / "install-count.txt").write_text(str(len(installed)))
-        return subprocess.CompletedProcess((pnpm_executable, "install"), 0)
-
-    monkeypatch.setattr("bt_web_report_cli.runtime._run_pnpm_install", fake_run_pnpm_install)
-
-    prepare_runtime_workspace(
-        project,
-        kind="preview",
-        renderer_source=renderer,
-        base_dir=app_support,
-    )
-    prepare_runtime_workspace(
-        project,
-        kind="preview",
-        renderer_source=renderer,
-        base_dir=app_support,
-    )
-    (renderer / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\npackages: {}\n")
-    prepare_runtime_workspace(
-        project,
-        kind="preview",
-        renderer_source=renderer,
-        base_dir=app_support,
-    )
-
-    renderer_runtime = app_support / "renderer" / "current"
-    assert installed == [renderer_runtime, renderer_runtime]
-    assert (renderer_runtime / "node_modules" / "install-count.txt").read_text() == "2"
+    assert calls[0]["cwd"] == target.resolve()
+    assert calls[0]["args"] == ("pnpm", "run", "build")
 
 
-def test_prepare_runtime_workspace_replaces_stale_source_node_modules_symlink(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    renderer = _make_renderer(tmp_path / "renderer")
-    project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
-    renderer_runtime = app_support / "renderer" / "current"
-    renderer_runtime.mkdir(parents=True)
-    (renderer_runtime / "node_modules").symlink_to(renderer / "node_modules", target_is_directory=True)
-    monkeypatch.setenv("NODE_AUTH_TOKEN", "test-token")
-
-    def fake_run_pnpm_install(
-        target: Path,
-        pnpm_executable: str,
-        env: dict[str, str],
-    ) -> subprocess.CompletedProcess[str]:
-        (target / "node_modules").mkdir()
-        return subprocess.CompletedProcess((pnpm_executable, "install"), 0)
-
-    monkeypatch.setattr("bt_web_report_cli.runtime._run_pnpm_install", fake_run_pnpm_install)
-
-    prepare_runtime_workspace(
-        project,
-        kind="preview",
-        renderer_source=renderer,
-        base_dir=app_support,
-    )
-
-    assert (renderer_runtime / "node_modules").is_dir()
-    assert not (renderer_runtime / "node_modules").is_symlink()
+def test_run_pnpm_script_rejects_missing_project_yaml(tmp_path: Path) -> None:
+    bare = tmp_path / "not-a-project"
+    bare.mkdir()
+    with pytest.raises(RuntimeError, match="no project.yaml"):
+        run_pnpm_script(bare, "build")
 
 
-def test_prepare_runtime_workspace_rejects_stale_project_schema(tmp_path: Path) -> None:
-    renderer = _make_renderer(tmp_path / "renderer")
-    project = _make_project(tmp_path / "Project" / "04_Web")
-    raw = yaml.safe_load((project / "project.yaml").read_text())
-    raw["schema_version"] = "0.1.0"
-    (project / "project.yaml").write_text(yaml.safe_dump(raw, sort_keys=False))
-
-    with pytest.raises(RuntimeError, match=r"schema_version.*0\.2\.0"):
-        prepare_runtime_workspace(
-            project,
-            kind="preview",
-            renderer_source=renderer,
-            base_dir=tmp_path / "support",
-            install=False,
+def test_run_pnpm_script_rejects_missing_package_json(tmp_path: Path) -> None:
+    pre_vendored = tmp_path / "old-project"
+    pre_vendored.mkdir()
+    _write_project_payload(pre_vendored)
+    (pre_vendored / "project.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "slug": "sample",
+                "project_title": "Sample",
+                "client_name": "Client",
+                "building_name": "Building",
+                "phase": "Design",
+                "report_date": "2026-05-21",
+                "prepared_by": "BLDGTYP",
+                "contact_email": "ed@bldgtyp.com",
+                "target_standard": "TBD",
+                "certification_program": "TBD",
+                "certification_path": "TBD",
+                "building": {
+                    "address": "TBD",
+                    "city": "TBD",
+                    "state": "TBD",
+                    "climate_zone": "TBD",
+                    "building_type": "TBD",
+                },
+                "source_files": {"data_dir": "data", "assets_dir": "public/assets"},
+                "publishing": {
+                    "production_url": "https://sample.bldgtyp.com",
+                    "cloudflare_pages_project": "bt-proj-sample",
+                },
+                "narrative": {
+                    "climate": {
+                        "weather_station_name": "TBD",
+                        "state_name": "TBD",
+                        "ashrae_location_name": "TBD",
+                    }
+                },
+            },
+            sort_keys=False,
         )
+    )
+    with pytest.raises(RuntimeError, match="re-seed"):
+        run_pnpm_script(pre_vendored, "build")
 
 
-def test_prepare_runtime_workspace_retries_transient_non_empty_cleanup(
+def test_run_pnpm_script_raises_on_non_zero_exit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
-    project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
-    workspace = app_support / "previews" / "sample"
-    workspace.mkdir(parents=True)
-    (workspace / "src").mkdir()
-    (workspace / "src" / "stale.txt").write_text("stale")
-    calls = 0
-    real_rmtree = shutil.rmtree
-
-    def flaky_rmtree(path: Path, *args: object, **kwargs: object) -> None:
-        nonlocal calls
-        if Path(path).name == "sample" and calls == 0:
-            calls += 1
-            raise OSError(errno.ENOTEMPTY, "Directory not empty", "src")
-        real_rmtree(path, *args, **kwargs)
-
-    monkeypatch.setattr("bt_web_report_cli.runtime.shutil.rmtree", flaky_rmtree)
-    monkeypatch.setattr("bt_web_report_cli.runtime.REMOVE_RETRY_DELAYS", (0,))
-
-    prepared = prepare_runtime_workspace(
-        project,
-        kind="preview",
+    target = tmp_path / "Project" / "04_Web"
+    create_project(
+        target,
+        slug="project-sample",
+        title="Sample",
+        repo="bt-proj-sample",
+        production_url="https://sample.bldgtyp.com",
         renderer_source=renderer,
-        base_dir=app_support,
-        install=False,
+        init_git=False,
     )
 
-    assert calls == 1
-    assert (prepared.workspace_path / "src" / "pages" / "index.astro").exists()
-    assert not (prepared.workspace_path / "src" / "stale.txt").exists()
-
-
-def test_run_renderer_script_points_tina_at_project_content(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    renderer = _make_renderer(tmp_path / "renderer")
-    project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
-    calls: list[dict[str, object]] = []
-
-    def fake_run(
-        args: tuple[str, str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        text: bool,
-        check: bool,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append({"args": args, "cwd": cwd, "env": env, "text": text, "check": check})
-        return subprocess.CompletedProcess(args, 0)
+    def fake_run(args, *, cwd, text, check):
+        return subprocess.CompletedProcess(args, 1)
 
     monkeypatch.setattr("bt_web_report_cli.runtime.subprocess.run", fake_run)
 
-    workspace = run_renderer_script(
-        project,
-        "dev:editor",
-        kind="preview",
-        renderer_source=renderer,
-        base_dir=app_support,
-        install=False,
-    )
-
-    assert calls[0]["cwd"] == workspace.workspace_path
-    env = calls[0]["env"]
-    assert isinstance(env, dict)
-    assert env[TINA_CONTENT_ROOT_ENV] == os.path.relpath(project.resolve(), workspace.workspace_path / "tina")
-
-
-def test_run_renderer_script_points_local_renderer_at_sibling_project_schema(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    workspace_root = tmp_path / "workspace"
-    renderer = _make_renderer(workspace_root / "bt-web-report-template")
-    schema = workspace_root / "bt-web-report-schemas" / "schemas" / "project.schema.json"
-    schema.parent.mkdir(parents=True)
-    schema.write_text("{}\n")
-    project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
-    calls: list[dict[str, object]] = []
-
-    def fake_run(
-        args: tuple[str, str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        text: bool,
-        check: bool,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append({"args": args, "cwd": cwd, "env": env, "text": text, "check": check})
-        return subprocess.CompletedProcess(args, 0)
-
-    monkeypatch.setattr("bt_web_report_cli.runtime.subprocess.run", fake_run)
-
-    run_renderer_script(
-        project,
-        "build",
-        kind="build",
-        renderer_source=renderer,
-        base_dir=app_support,
-        install=False,
-    )
-
-    env = calls[0]["env"]
-    assert isinstance(env, dict)
-    assert env[PROJECT_SCHEMA_JSON_ENV] == str(schema.resolve())
+    with pytest.raises(RuntimeError, match="exit 1"):
+        run_pnpm_script(target, "build")
 
 
 def test_create_project_ignores_ds_store_in_existing_target(tmp_path: Path) -> None:
