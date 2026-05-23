@@ -1,4 +1,18 @@
-"""Shared renderer runtime for content-only project repositories."""
+"""Shared renderer runtime for content-only project repositories.
+
+There is exactly ONE ``node_modules`` directory in the entire system:
+the workspace template's
+``~/Dropbox/bldgtyp-00/00_PH_Tools/bt-web-report/bt-web-report-template/node_modules/``.
+``btwr build / preview / editor`` create disposable runtime workspaces
+at ``~/Dropbox/bldgtyp-00/00_PH_Tools/bt-web-report/.builds/{builds,previews}/<slug>/``
+and symlink that single ``node_modules`` in. No per-project install,
+no app-support copy, no second ``node_modules`` anywhere.
+
+This is the absolute, non-negotiable rule for the bt-web-report platform:
+no ``node_modules`` ever exists inside a per-project repo, and only the
+workspace template hosts one centrally. See
+`context/legacy/design.html` and the project-rebuild constraint thread.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +20,6 @@ import errno
 import os
 import shutil
 import subprocess
-import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,12 +33,20 @@ from bt_web_report_schemas.project import Project
 APP_SUPPORT_ENV = "BTWR_APP_SUPPORT"
 MANAGER_APP_SUPPORT_ENV = "BTWR_MANAGER_APP_SUPPORT"
 RENDERER_SOURCE_ENV = "BTWR_RENDERER_SOURCE"
+BUILDS_ROOT_ENV = "BTWR_BUILDS_ROOT"
 PROJECT_SCHEMA_JSON_ENV = "BTWR_PROJECT_SCHEMA_JSON"
 TINA_CONTENT_ROOT_ENV = "BTWR_TINA_CONTENT_ROOT"
 
 APP_SUPPORT_DEFAULT = Path("~/Library/Application Support/bt-web-report-manager").expanduser()
+WORKSPACE_BUILDS_DEFAULT = Path("~/Dropbox/bldgtyp-00/00_PH_Tools/bt-web-report/.builds").expanduser()
+
 REMOVE_RETRY_DELAYS = (0.1, 0.25, 0.5)
 REMOVE_RETRY_ERRNOS = {errno.ENOTEMPTY, errno.EBUSY, errno.EPERM}
+
+# Files / dirs copied or symlinked from the workspace template into the
+# disposable runtime workspace. Order: non-LOCAL items become symlinks
+# (read-only), LOCAL items get copied (because Astro / Tina need them
+# to be siblings of the project content for relative-path resolution).
 RENDERER_PAYLOAD = (
     "astro.config.mjs",
     "package.json",
@@ -37,7 +58,6 @@ RENDERER_PAYLOAD = (
     "tina",
     "tsconfig.json",
 )
-RENDERER_DEPENDENCY_INPUTS = ("package.json", "pnpm-lock.yaml")
 LOCAL_RENDERER_PAYLOAD = {"src", "tina"}
 PROJECT_PAYLOAD = ("project.yaml", "content", "data", "public")
 IGNORED_RENDERER_NAMES = {
@@ -59,7 +79,7 @@ class RuntimeWorkspace:
 
 
 def app_support_dir() -> Path:
-    """Return the shared manager-owned runtime root."""
+    """Return the manager-owned support root (used by `btwr doctor` banner only)."""
 
     override = os.environ.get(APP_SUPPORT_ENV) or os.environ.get(MANAGER_APP_SUPPORT_ENV)
     if override:
@@ -67,8 +87,21 @@ def app_support_dir() -> Path:
     return APP_SUPPORT_DEFAULT
 
 
+def builds_root() -> Path:
+    """Return the workspace-level ``.builds/`` root for runtime workspaces.
+
+    Lives under the workspace tree, NEVER inside a per-project Dropbox
+    folder. Overridable via ``BTWR_BUILDS_ROOT`` for tests / alternate setups.
+    """
+
+    override = os.environ.get(BUILDS_ROOT_ENV)
+    if override:
+        return Path(override).expanduser()
+    return WORKSPACE_BUILDS_DEFAULT
+
+
 def resolve_renderer_source(explicit: Path | None = None) -> Path | None:
-    """Find the source renderer used to refresh app-support runtime files."""
+    """Find the workspace template — the single canonical renderer source."""
 
     if explicit is not None:
         return explicit.expanduser().resolve()
@@ -82,10 +115,6 @@ def resolve_renderer_source(explicit: Path | None = None) -> Path | None:
         if (candidate / "package.json").exists() and (candidate / "src").exists():
             return candidate
     return None
-
-
-def renderer_dir(base_dir: Path | None = None) -> Path:
-    return (base_dir or app_support_dir()) / "renderer" / "current"
 
 
 def project_slug(project_path: Path) -> str:
@@ -116,82 +145,81 @@ def validate_project_yaml(project_path: Path) -> None:
         raise RuntimeError(f"{project_file}: {location} {message}") from exc
 
 
-def ensure_renderer(
-    *,
-    renderer_source: Path | None = None,
-    base_dir: Path | None = None,
-    pnpm_executable: str = "pnpm",
-    install: bool = True,
-) -> Path:
-    """Refresh the shared renderer and install deps once in app support."""
-
-    target = renderer_dir(base_dir)
-    source = resolve_renderer_source(renderer_source)
-    if source is not None:
-        dependencies_changed = _renderer_dependency_inputs_changed(source, target)
-        _sync_renderer_source(source, target)
-        target_node_modules = target / "node_modules"
-        if target_node_modules.is_symlink():
-            _remove(target_node_modules)
-        elif dependencies_changed and target_node_modules.exists():
-            _remove(target_node_modules)
-    elif not (target / "package.json").exists():
-        msg = (
-            "No renderer runtime is installed. Set BTWR_RENDERER_SOURCE or pass "
-            "--renderer-source once so btwr can populate the shared renderer."
-        )
-        raise RuntimeError(msg)
-
-    if install and not (target / "node_modules").exists():
-        _install_renderer_dependencies(target, pnpm_executable)
-    return target
-
-
 def prepare_runtime_workspace(
     project_path: Path,
     *,
     kind: Literal["build", "preview"],
     renderer_source: Path | None = None,
     base_dir: Path | None = None,
-    pnpm_executable: str = "pnpm",
+    pnpm_executable: str = "pnpm",  # kept for signature compat; install no longer happens here
     install: bool = True,
 ) -> RuntimeWorkspace:
-    """Create a disposable symlink workspace for a content-only project."""
+    """Build a disposable symlink workspace for a content-only project.
+
+    ``base_dir`` defaults to :func:`builds_root` (the workspace ``.builds/``).
+    Layout under ``base_dir`` is ``builds/<slug>/`` (for ``btwr build``) or
+    ``previews/<slug>/`` (for ``btwr preview`` / ``btwr editor``).
+
+    ``install`` historically would run ``pnpm install`` into a second
+    ``node_modules``; that is no longer permitted. If the workspace template
+    has no ``node_modules``, the user must run ``pnpm install`` once in the
+    template manually — this method does not duplicate it.
+    """
+
+    del pnpm_executable  # signature-compat only
 
     resolved_project = project_path.expanduser().resolve()
     validate_project_yaml(resolved_project)
 
-    renderer = ensure_renderer(
-        renderer_source=renderer_source,
-        base_dir=base_dir,
-        pnpm_executable=pnpm_executable,
-        install=install,
-    )
+    source = resolve_renderer_source(renderer_source)
+    if source is None:
+        raise RuntimeError(
+            "Renderer source could not be found. Set BTWR_RENDERER_SOURCE or pass "
+            "--renderer-source so btwr can locate the workspace template."
+        )
+
+    node_modules = source / "node_modules"
+    if not node_modules.exists():
+        raise RuntimeError(
+            f"Workspace template has no node_modules: {node_modules}\n"
+            "Run `pnpm install` once in the workspace template; that is the single "
+            "node_modules the entire system uses. `btwr build/preview/editor` never "
+            "installs a per-project copy."
+        )
+    if install is False:
+        # Documented escape hatch — useful in tests / when the caller has
+        # already validated the template install is current. No-op here.
+        pass
+
+    workspace_root = base_dir or builds_root()
     bucket = "builds" if kind == "build" else "previews"
-    workspace = (base_dir or app_support_dir()) / bucket / project_slug(resolved_project)
+    workspace = workspace_root / bucket / project_slug(resolved_project)
     if workspace.exists():
         _remove_tree(workspace)
     workspace.mkdir(parents=True)
 
     for name in RENDERER_PAYLOAD:
-        source = renderer / name
-        if source.exists():
-            destination = workspace / name
-            if name in LOCAL_RENDERER_PAYLOAD and source.is_dir():
-                shutil.copytree(source, destination, ignore=shutil.ignore_patterns(*IGNORED_RENDERER_NAMES))
-            else:
-                _symlink(source, destination)
+        item = source / name
+        if not item.exists():
+            continue
+        destination = workspace / name
+        if name in LOCAL_RENDERER_PAYLOAD and item.is_dir():
+            shutil.copytree(item, destination, ignore=shutil.ignore_patterns(*IGNORED_RENDERER_NAMES))
+        else:
+            _symlink(item, destination)
 
-    node_modules = renderer / "node_modules"
-    if node_modules.exists():
-        _symlink(node_modules, workspace / "node_modules")
+    _symlink(node_modules, workspace / "node_modules")
 
     for name in PROJECT_PAYLOAD:
-        source = resolved_project / name
-        if source.exists():
-            _symlink(source, workspace / name)
+        item = resolved_project / name
+        if item.exists():
+            _symlink(item, workspace / name)
 
-    return RuntimeWorkspace(project_path=resolved_project, renderer_path=renderer, workspace_path=workspace)
+    return RuntimeWorkspace(
+        project_path=resolved_project,
+        renderer_path=source,
+        workspace_path=workspace,
+    )
 
 
 def run_renderer_script(
@@ -210,7 +238,6 @@ def run_renderer_script(
         kind=kind,
         renderer_source=source,
         base_dir=base_dir,
-        pnpm_executable=pnpm_executable,
         install=install,
     )
     env = os.environ.copy()
@@ -218,7 +245,13 @@ def run_renderer_script(
     project_schema_json = _project_schema_json_for_renderer_source(source)
     if project_schema_json is not None:
         env[PROJECT_SCHEMA_JSON_ENV] = str(project_schema_json)
-    result = subprocess.run((pnpm_executable, script), cwd=workspace.workspace_path, env=env, text=True, check=False)
+    result = subprocess.run(
+        (pnpm_executable, script),
+        cwd=workspace.workspace_path,
+        env=env,
+        text=True,
+        check=False,
+    )
     if result.returncode != 0:
         raise RuntimeError(f"Renderer script '{script}' failed with exit {result.returncode}.")
     return workspace
@@ -231,79 +264,6 @@ def _project_schema_json_for_renderer_source(source: Path | None) -> Path | None
     if candidate.exists():
         return candidate.resolve()
     return None
-
-
-def _sync_renderer_source(source: Path, target: Path) -> None:
-    if not source.exists():
-        raise RuntimeError(f"Renderer source does not exist: {source}")
-    target.mkdir(parents=True, exist_ok=True)
-
-    source_names = {item.name for item in source.iterdir() if item.name not in IGNORED_RENDERER_NAMES}
-    for existing in target.iterdir():
-        if existing.name in IGNORED_RENDERER_NAMES:
-            continue
-        if existing.name not in source_names:
-            _remove(existing)
-
-    for item in source.iterdir():
-        if item.name in IGNORED_RENDERER_NAMES:
-            continue
-        destination = target / item.name
-        if destination.exists() or destination.is_symlink():
-            _remove(destination)
-        if item.is_dir():
-            shutil.copytree(item, destination, ignore=shutil.ignore_patterns(*IGNORED_RENDERER_NAMES))
-        else:
-            shutil.copy2(item, destination)
-
-
-def _renderer_dependency_inputs_changed(source: Path, target: Path) -> bool:
-    for name in RENDERER_DEPENDENCY_INPUTS:
-        source_file = source / name
-        target_file = target / name
-        if source_file.exists() != target_file.exists():
-            return True
-        if source_file.exists() and source_file.read_bytes() != target_file.read_bytes():
-            return True
-    return False
-
-
-def _install_renderer_dependencies(target: Path, pnpm_executable: str) -> None:
-    env = os.environ.copy()
-    token = env.get("NODE_AUTH_TOKEN") or _github_auth_token()
-    if token:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            npmrc = Path(temp_dir) / ".npmrc"
-            npmrc.write_text(
-                "@bldgtyp:registry=https://npm.pkg.github.com\n" f"//npm.pkg.github.com/:_authToken={token}\n"
-            )
-            env["NPM_CONFIG_USERCONFIG"] = str(npmrc)
-            result = _run_pnpm_install(target, pnpm_executable, env)
-    else:
-        result = _run_pnpm_install(target, pnpm_executable, env)
-    if result.returncode != 0:
-        raise RuntimeError(f"Renderer dependency install failed with exit {result.returncode}.")
-
-
-def _run_pnpm_install(target: Path, pnpm_executable: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        (pnpm_executable, "install", "--ignore-scripts", "--no-frozen-lockfile"),
-        cwd=target,
-        env=env,
-        text=True,
-        check=False,
-    )
-
-
-def _github_auth_token() -> str | None:
-    try:
-        result = subprocess.run(("gh", "auth", "token"), text=True, capture_output=True, check=False, timeout=5)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if result.returncode != 0:
-        return None
-    token = result.stdout.strip()
-    return token or None
 
 
 def _symlink(source: Path, destination: Path) -> None:

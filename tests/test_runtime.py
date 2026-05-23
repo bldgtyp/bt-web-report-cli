@@ -18,141 +18,63 @@ from bt_web_report_cli.runtime import (
 from bt_web_report_schemas.project import SCHEMA_VERSION
 
 
-def test_prepare_runtime_workspace_keeps_node_dependencies_outside_project(tmp_path: Path) -> None:
+def test_prepare_runtime_workspace_symlinks_single_node_modules_from_template(tmp_path: Path) -> None:
+    """ONE node_modules: the workspace template's. Project gets a symlink, never a copy."""
+
     renderer = _make_renderer(tmp_path / "renderer")
     project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
+    builds = tmp_path / "builds"
 
     workspace = prepare_runtime_workspace(
         project,
         kind="build",
         renderer_source=renderer,
-        base_dir=app_support,
-        install=False,
+        base_dir=builds,
     )
 
-    assert workspace.renderer_path == app_support / "renderer" / "current"
-    assert workspace.workspace_path == app_support / "builds" / "sample"
+    # Workspace lands under base_dir/<bucket>/<slug>/ — never inside the project.
+    assert workspace.workspace_path == builds / "builds" / "sample"
+    assert workspace.renderer_path == renderer
+
+    # node_modules is a symlink pointing AT the workspace template's single install.
+    nm = workspace.workspace_path / "node_modules"
+    assert nm.is_symlink()
+    assert nm.resolve() == (renderer / "node_modules").resolve()
+
+    # The PROJECT must remain content-only: never gets node_modules or package.json.
+    assert not (project / "node_modules").exists()
+    assert not (project / "package.json").exists()
+
+    # Renderer payload pieces: package.json is a symlink; src/ and tina/ are copies
+    # (Astro/Tina expect them as siblings of the project content).
     assert (workspace.workspace_path / "package.json").is_symlink()
     assert not (workspace.workspace_path / "src").is_symlink()
     assert not (workspace.workspace_path / "tina").is_symlink()
     assert (workspace.workspace_path / "tina" / "__generated__" / "_lookup.json").exists()
     assert (workspace.workspace_path / "src" / "pages" / "index.astro").exists()
+
+    # Project content is symlinked in from the project dir.
     assert (workspace.workspace_path / "content").resolve() == (project / "content").resolve()
-    assert not (project / "node_modules").exists()
-    assert not (project / "package.json").exists()
 
 
-def test_prepare_runtime_workspace_installs_app_support_dependencies_instead_of_symlinking_source(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_prepare_runtime_workspace_errors_when_template_node_modules_missing(tmp_path: Path) -> None:
+    """If the workspace template has no node_modules, btwr refuses to set up a workspace.
+
+    We never install a second copy — the user must `pnpm install` in the
+    workspace template once. This is the absolute one-node_modules rule.
+    """
+
     renderer = _make_renderer(tmp_path / "renderer")
+    shutil.rmtree(renderer / "node_modules")
     project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
-    installed: list[Path] = []
-    monkeypatch.setenv("NODE_AUTH_TOKEN", "test-token")
 
-    def fake_run_pnpm_install(
-        target: Path,
-        pnpm_executable: str,
-        env: dict[str, str],
-    ) -> subprocess.CompletedProcess[str]:
-        installed.append(target)
-        (target / "node_modules").mkdir()
-        return subprocess.CompletedProcess((pnpm_executable, "install"), 0)
-
-    monkeypatch.setattr("bt_web_report_cli.runtime._run_pnpm_install", fake_run_pnpm_install)
-
-    workspace = prepare_runtime_workspace(
-        project,
-        kind="preview",
-        renderer_source=renderer,
-        base_dir=app_support,
-    )
-
-    renderer_runtime = app_support / "renderer" / "current"
-    assert installed == [renderer_runtime]
-    assert (renderer_runtime / "node_modules").is_dir()
-    assert not (renderer_runtime / "node_modules").is_symlink()
-    assert (workspace.workspace_path / "node_modules").resolve() == (renderer_runtime / "node_modules").resolve()
-
-
-def test_prepare_runtime_workspace_reinstalls_when_renderer_dependency_inputs_change(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    renderer = _make_renderer(tmp_path / "renderer")
-    project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
-    installed: list[Path] = []
-    monkeypatch.setenv("NODE_AUTH_TOKEN", "test-token")
-
-    def fake_run_pnpm_install(
-        target: Path,
-        pnpm_executable: str,
-        env: dict[str, str],
-    ) -> subprocess.CompletedProcess[str]:
-        installed.append(target)
-        (target / "node_modules").mkdir()
-        (target / "node_modules" / "install-count.txt").write_text(str(len(installed)))
-        return subprocess.CompletedProcess((pnpm_executable, "install"), 0)
-
-    monkeypatch.setattr("bt_web_report_cli.runtime._run_pnpm_install", fake_run_pnpm_install)
-
-    prepare_runtime_workspace(
-        project,
-        kind="preview",
-        renderer_source=renderer,
-        base_dir=app_support,
-    )
-    prepare_runtime_workspace(
-        project,
-        kind="preview",
-        renderer_source=renderer,
-        base_dir=app_support,
-    )
-    (renderer / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\npackages: {}\n")
-    prepare_runtime_workspace(
-        project,
-        kind="preview",
-        renderer_source=renderer,
-        base_dir=app_support,
-    )
-
-    renderer_runtime = app_support / "renderer" / "current"
-    assert installed == [renderer_runtime, renderer_runtime]
-    assert (renderer_runtime / "node_modules" / "install-count.txt").read_text() == "2"
-
-
-def test_prepare_runtime_workspace_replaces_stale_source_node_modules_symlink(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    renderer = _make_renderer(tmp_path / "renderer")
-    project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
-    renderer_runtime = app_support / "renderer" / "current"
-    renderer_runtime.mkdir(parents=True)
-    (renderer_runtime / "node_modules").symlink_to(renderer / "node_modules", target_is_directory=True)
-    monkeypatch.setenv("NODE_AUTH_TOKEN", "test-token")
-
-    def fake_run_pnpm_install(
-        target: Path,
-        pnpm_executable: str,
-        env: dict[str, str],
-    ) -> subprocess.CompletedProcess[str]:
-        (target / "node_modules").mkdir()
-        return subprocess.CompletedProcess((pnpm_executable, "install"), 0)
-
-    monkeypatch.setattr("bt_web_report_cli.runtime._run_pnpm_install", fake_run_pnpm_install)
-
-    prepare_runtime_workspace(
-        project,
-        kind="preview",
-        renderer_source=renderer,
-        base_dir=app_support,
-    )
-
-    assert (renderer_runtime / "node_modules").is_dir()
-    assert not (renderer_runtime / "node_modules").is_symlink()
+    with pytest.raises(RuntimeError, match="Workspace template has no node_modules"):
+        prepare_runtime_workspace(
+            project,
+            kind="build",
+            renderer_source=renderer,
+            base_dir=tmp_path / "builds",
+        )
 
 
 def test_prepare_runtime_workspace_rejects_stale_project_schema(tmp_path: Path) -> None:
@@ -167,7 +89,7 @@ def test_prepare_runtime_workspace_rejects_stale_project_schema(tmp_path: Path) 
             project,
             kind="preview",
             renderer_source=renderer,
-            base_dir=tmp_path / "support",
+            base_dir=tmp_path / "builds",
             install=False,
         )
 
@@ -177,8 +99,8 @@ def test_prepare_runtime_workspace_retries_transient_non_empty_cleanup(
 ) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
     project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
-    workspace = app_support / "previews" / "sample"
+    builds = tmp_path / "builds"
+    workspace = builds / "previews" / "sample"
     workspace.mkdir(parents=True)
     (workspace / "src").mkdir()
     (workspace / "src" / "stale.txt").write_text("stale")
@@ -199,7 +121,7 @@ def test_prepare_runtime_workspace_retries_transient_non_empty_cleanup(
         project,
         kind="preview",
         renderer_source=renderer,
-        base_dir=app_support,
+        base_dir=builds,
         install=False,
     )
 
@@ -211,7 +133,7 @@ def test_prepare_runtime_workspace_retries_transient_non_empty_cleanup(
 def test_run_renderer_script_points_tina_at_project_content(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
     project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
+    builds = tmp_path / "builds"
     calls: list[dict[str, object]] = []
 
     def fake_run(
@@ -232,7 +154,7 @@ def test_run_renderer_script_points_tina_at_project_content(tmp_path: Path, monk
         "dev:editor",
         kind="preview",
         renderer_source=renderer,
-        base_dir=app_support,
+        base_dir=builds,
         install=False,
     )
 
@@ -251,7 +173,7 @@ def test_run_renderer_script_points_local_renderer_at_sibling_project_schema(
     schema.parent.mkdir(parents=True)
     schema.write_text("{}\n")
     project = _make_project(tmp_path / "Project" / "04_Web")
-    app_support = tmp_path / "support"
+    builds = tmp_path / "builds"
     calls: list[dict[str, object]] = []
 
     def fake_run(
@@ -272,7 +194,7 @@ def test_run_renderer_script_points_local_renderer_at_sibling_project_schema(
         "build",
         kind="build",
         renderer_source=renderer,
-        base_dir=app_support,
+        base_dir=builds,
         install=False,
     )
 
