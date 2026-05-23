@@ -281,11 +281,175 @@ def test_run_renderer_script_points_local_renderer_at_sibling_project_schema(
     assert env[PROJECT_SCHEMA_JSON_ENV] == str(schema.resolve())
 
 
-def test_create_project_ignores_ds_store_in_existing_target(tmp_path: Path) -> None:
+def test_create_project_copies_only_content_payload(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    renderer = _make_renderer(tmp_path / "renderer")
+    stale_archive = renderer / "public" / "assets" / "envelope" / "assemblies" / "recommended-assemblies.zip"
+    stale_archive.parent.mkdir(parents=True)
+    stale_archive.write_text("stale zip")
+    target = tmp_path / "Project" / "04_Web"
+    phpp = tmp_path / "Project" / "07_PHPP" / "model.xlsx"
+    phpp.parent.mkdir(parents=True)
+    phpp.write_text("fixture")
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
+
+    create_project(
+        target,
+        slug="project-2606",
+        title="2606 Vandam",
+        repo="bt-proj-2606-vandam",
+        production_url="https://project-2606.bldgtyp.com",
+        phpp=phpp,
+        renderer_source=renderer,
+        init_git=False,
+    )
+
+    assert (target / "project.yaml").exists()
+    assert (target / "content" / "summary.mdx").exists()
+    assert (target / "data" / "manifest.json").exists()
+    assert not (target / "public" / "assets" / "envelope" / "assemblies" / "recommended-assemblies.zip").exists()
+    assert not (target / "package.json").exists()
+    assert not (target / "src").exists()
+    assert not (target / "node_modules").exists()
+    project_yaml = yaml.safe_load((target / "project.yaml").read_text())
+    assert project_yaml["schema_version"] == SCHEMA_VERSION
+    assert project_yaml["source_files"]["phpp_path"] == "../07_PHPP/model.xlsx"
+    assert project_yaml["narrative"]["climate"]["weather_station_name"] == "TBD"
+    validate_project_yaml(target)
+
+
+def test_create_project_pins_reusable_workflow_to_resolved_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    renderer = _make_renderer(tmp_path / "renderer")
+    workflow = renderer / ".github" / "workflows" / "ci.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        "jobs:\n"
+        "  build:\n"
+        "    uses: ./.github/workflows/_renderer-build.yml\n"
+        "    with:\n"
+        "      project-repo: ${{ github.repository }}\n"
+        "      project-ref: ${{ github.ref }}\n"
+        "      renderer-ref: ${{ github.sha }}\n"
+        "      schemas-ref: main\n"
+        "      run-deploy: false\n"
+    )
+    target = tmp_path / "Project" / "04_Web"
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
+
+    create_project(
+        target,
+        slug="project-2606",
+        title="2606 Vandam",
+        repo="bt-proj-2606-vandam",
+        production_url="https://project-2606.bldgtyp.com",
+        renderer_source=renderer,
+        init_git=False,
+    )
+
+    copied_workflow = (target / ".github" / "workflows" / "ci.yml").read_text()
+    assert "uses: bldgtyp/bt-web-report-template/.github/workflows/_renderer-build.yml@abc123" in copied_workflow
+    assert "renderer-ref: abc123" in copied_workflow
+    assert "renderer-ref: ${{ github.sha }}" not in copied_workflow
+    assert "./.github/workflows/_renderer-build.yml" not in copied_workflow
+
+
+def test_create_project_pins_legacy_repository_block(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Back-compat: still pins the old (pre-reusable-workflow) structure if encountered."""
+
+    renderer = _make_renderer(tmp_path / "renderer")
+    workflow = renderer / ".github" / "workflows" / "ci.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        "jobs:\n"
+        "  build:\n"
+        "    steps:\n"
+        "      - name: Checkout shared renderer\n"
+        "        uses: actions/checkout@v4\n"
+        "        with:\n"
+        "          repository: bldgtyp/bt-web-report-template\n"
+        "          path: renderer\n"
+    )
+    target = tmp_path / "Project" / "04_Web"
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
+
+    create_project(
+        target,
+        slug="project-2606",
+        title="2606 Vandam",
+        repo="bt-proj-2606-vandam",
+        production_url="https://project-2606.bldgtyp.com",
+        renderer_source=renderer,
+        init_git=False,
+    )
+
+    copied_workflow = (target / ".github" / "workflows" / "ci.yml").read_text()
+    assert (
+        "repository: bldgtyp/bt-web-report-template\n          ref: abc123\n          path: renderer" in copied_workflow
+    )
+
+
+def test_resolve_renderer_ref_refuses_unspecified_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Floating 'main' is no longer a legal default — Phase 1 cascade stop."""
+
+    from bt_web_report_cli.new_project import RENDERER_REF_ENV, _resolve_renderer_ref
+
+    monkeypatch.delenv(RENDERER_REF_ENV, raising=False)
+    with pytest.raises(RuntimeError, match=RENDERER_REF_ENV):
+        _resolve_renderer_ref(tmp_path)
+
+
+def test_resolve_renderer_ref_refuses_floating_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Setting BTWR_RENDERER_REF=main is also rejected to prevent accidental cascade."""
+
+    from bt_web_report_cli.new_project import RENDERER_REF_ENV, _resolve_renderer_ref
+
+    monkeypatch.setenv(RENDERER_REF_ENV, "main")
+    with pytest.raises(RuntimeError, match="floating branch"):
+        _resolve_renderer_ref(tmp_path)
+
+
+def test_resolve_renderer_ref_explicit_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit BTWR_RENDERER_REF wins over the @main default."""
+
+    from bt_web_report_cli.new_project import RENDERER_REF_ENV, _resolve_renderer_ref
+
+    monkeypatch.setenv(RENDERER_REF_ENV, "v1.2.3")
+    assert _resolve_renderer_ref(tmp_path) == "v1.2.3"
+
+
+def test_resolve_renderer_ref_head_resolves_to_sha(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Legacy "pin to HEAD" behaviour stays available via BTWR_RENDERER_REF=HEAD."""
+
+    from bt_web_report_cli.new_project import RENDERER_REF_ENV, _resolve_renderer_ref
+
+    monkeypatch.setenv(RENDERER_REF_ENV, "HEAD")
+    fake = {"value": "deadbeef"}
+
+    def fake_run(*args, **kwargs):
+        class R:
+            returncode = 0
+            stdout = fake["value"]
+            stderr = ""
+
+        return R()
+
+    monkeypatch.setattr("bt_web_report_cli.new_project._run_command", fake_run)
+    assert _resolve_renderer_ref(tmp_path) == "deadbeef"
+
+
+def test_create_project_ignores_ds_store_in_existing_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
     target = tmp_path / "Project" / "04_Web"
     target.mkdir(parents=True)
     (target / ".DS_Store").write_text("finder")
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
 
     create_project(
         target,
@@ -301,11 +465,14 @@ def test_create_project_ignores_ds_store_in_existing_target(tmp_path: Path) -> N
     assert (target / ".DS_Store").exists()
 
 
-def test_create_project_requires_overwrite_for_real_existing_content(tmp_path: Path) -> None:
+def test_create_project_requires_overwrite_for_real_existing_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
     target = tmp_path / "Project" / "04_Web"
     target.mkdir(parents=True)
     (target / "old.md").write_text("old")
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
 
     with pytest.raises(RuntimeError, match="not empty"):
         create_project(
@@ -474,10 +641,7 @@ def test_publish_project_makes_existing_private_repo_public(tmp_path: Path, monk
 
 def _make_renderer(path: Path) -> Path:
     path.mkdir(parents=True)
-    (path / "package.json").write_text(
-        '{"scripts":{"build":"echo build","dev":"echo dev","dev:editor":"echo editor"},'
-        '"dependencies":{"@bldgtyp/web-report-schemas":"^0.3.0"}}'
-    )
+    (path / "package.json").write_text('{"scripts":{"build":"echo build","dev":"echo dev","dev:editor":"echo editor"}}')
     (path / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\n")
     (path / "astro.config.mjs").write_text("export default {};\n")
     (path / "tsconfig.json").write_text("{}\n")
@@ -485,8 +649,6 @@ def _make_renderer(path: Path) -> Path:
     (path / "src" / "pages").mkdir()
     (path / "src" / "pages" / "index.astro").write_text("---\n---\n")
     (path / "scripts").mkdir()
-    (path / "scripts" / "seed-ci.yml").write_text("name: CI\non: [push]\njobs: {}\n")
-    (path / "scripts" / "seed-deploy.yml").write_text("name: Deploy\non: [push]\njobs: {}\n")
     (path / "tina" / "__generated__").mkdir(parents=True)
     (path / "tina" / "__generated__" / "_lookup.json").write_text("{}\n")
     (path / "node_modules").mkdir()
