@@ -285,8 +285,8 @@ def prepare_runtime(
 
 @main.command()
 @click.argument("project_path", type=click.Path(exists=True, file_okay=False, path_type=Path))
-@click.option("--renderer", "renderer_ref", required=True, help="Renderer (template) SHA or tag to pin.")
-@click.option("--schemas", "schemas_ref", required=True, help="Schemas SHA or tag to pin.")
+@click.option("--renderer", "renderer_ref", help="Renderer (template) SHA or tag to pin.")
+@click.option("--schemas", "schemas_ref", help="Schemas SHA or tag to pin.")
 @click.option(
     "--workflow",
     "workflow_ref",
@@ -295,8 +295,8 @@ def prepare_runtime(
 @click.option("--show", is_flag=True, help="Print the current pin state and exit without writing.")
 def pin(
     project_path: Path,
-    renderer_ref: str,
-    schemas_ref: str,
+    renderer_ref: str | None,
+    schemas_ref: str | None,
     workflow_ref: str | None,
     show: bool,
 ) -> None:
@@ -317,6 +317,9 @@ def pin(
             for label, value in info.items():
                 click.echo(f"  {label}: {value if value is not None else '(missing)'}")
         return
+
+    if not renderer_ref or not schemas_ref:
+        raise click.UsageError("--renderer and --schemas are required (or pass --show to inspect).")
 
     try:
         result = pin_project(
