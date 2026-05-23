@@ -358,15 +358,52 @@ def test_create_project_pins_legacy_local_reusable_workflow_form(
     assert "schemas-ref: sbeefcaf" in ci_text
 
 
-def test_resolve_renderer_ref_refuses_unspecified_default(
+def test_resolve_renderer_ref_defaults_to_template_head_sha(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Floating 'main' is no longer a legal default — Phase 1 cascade stop."""
+    """No env override → auto-resolve via `git rev-parse HEAD` in the template.
+
+    This is the natural default for Manager-launched `btwr new` so the user
+    does not have to type a SHA. The cascade-stop is preserved because the
+    resolved SHA is BAKED INTO the per-project workflow at seed time — no
+    floating ref survives into the project repo.
+    """
 
     from bt_web_report_cli.new_project import RENDERER_REF_ENV, _resolve_renderer_ref
 
     monkeypatch.delenv(RENDERER_REF_ENV, raising=False)
-    with pytest.raises(RuntimeError, match=RENDERER_REF_ENV):
+
+    def fake_run(*args, **kwargs):
+        class R:
+            returncode = 0
+            stdout = "f00dface1234\n"
+            stderr = ""
+
+        return R()
+
+    monkeypatch.setattr("bt_web_report_cli.new_project._run_command", fake_run)
+    assert _resolve_renderer_ref(tmp_path) == "f00dface1234"
+
+
+def test_resolve_renderer_ref_errors_when_template_not_a_git_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No env, no usable git checkout → raise with an actionable message."""
+
+    from bt_web_report_cli.new_project import RENDERER_REF_ENV, _resolve_renderer_ref
+
+    monkeypatch.delenv(RENDERER_REF_ENV, raising=False)
+
+    def fake_run(*args, **kwargs):
+        class R:
+            returncode = 128
+            stdout = ""
+            stderr = "fatal: not a git repository"
+
+        return R()
+
+    monkeypatch.setattr("bt_web_report_cli.new_project._run_command", fake_run)
+    with pytest.raises(RuntimeError, match="git rev-parse HEAD"):
         _resolve_renderer_ref(tmp_path)
 
 

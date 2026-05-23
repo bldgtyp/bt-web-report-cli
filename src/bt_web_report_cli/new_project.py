@@ -213,34 +213,40 @@ def _write_project_yaml(
 def _resolve_renderer_ref(source: Path) -> str:
     """Resolve the explicit ref to pin per-project workflows to.
 
-    Floating ``main`` is no longer a legal default: every new project must be
-    seeded against a deterministic ref. Callers either set
-    :data:`RENDERER_REF_ENV` to an explicit SHA / tag, or to ``HEAD`` to mean
-    "resolve to the current SHA of the renderer source's working tree."
+    Resolution order:
+      1. ``BTWR_RENDERER_REF`` env explicit SHA/tag → use as-is.
+      2. ``BTWR_RENDERER_REF=HEAD`` or unset → resolve via ``git rev-parse HEAD``
+         in the workspace template checkout. This gives a deterministic
+         per-project pin without requiring the operator to look up the SHA.
+      3. ``BTWR_RENDERER_REF=main`` / ``master`` → refused. Pinning to a
+         floating branch is exactly what the cascade-stop forbids.
+
+    Auto-resolving to HEAD when no env is set lets Manager-launched
+    ``btwr new`` work out of the box, while still refusing the
+    foot-gun cases.
     """
 
     override = os.environ.get(RENDERER_REF_ENV)
-    if not override:
-        raise RuntimeError(
-            f"{RENDERER_REF_ENV} must be set to an explicit ref (SHA or tag) or 'HEAD'. "
-            "Floating 'main' is no longer accepted because it causes cross-project "
-            "cascade redeploys when the template changes."
-        )
-    if override.upper() == "HEAD":
-        result = _run_command(("git", "rev-parse", "HEAD"), cwd=source, check=False)
-        if result.returncode == 0:
-            ref = result.stdout.strip()
-            if ref:
-                return ref
-        raise RuntimeError(
-            f"{RENDERER_REF_ENV}=HEAD requested but `git rev-parse HEAD` failed in {source}"
-        )
-    if override in {"main", "master"}:
+    if override and override in {"main", "master"}:
         raise RuntimeError(
             f"{RENDERER_REF_ENV}={override!r} is a floating branch — pin to an explicit "
-            "SHA or tag instead."
+            "SHA or tag instead, or unset the env var to auto-resolve to the template's "
+            "current HEAD SHA."
         )
-    return override
+    if override and override.upper() != "HEAD":
+        return override
+
+    # No override or HEAD → resolve via the workspace template's HEAD SHA.
+    result = _run_command(("git", "rev-parse", "HEAD"), cwd=source, check=False)
+    if result.returncode == 0:
+        ref = result.stdout.strip()
+        if ref:
+            return ref
+    raise RuntimeError(
+        f"Cannot resolve renderer ref: `git rev-parse HEAD` failed in {source}. "
+        f"Set {RENDERER_REF_ENV} to an explicit SHA, or ensure the workspace "
+        "template is a git checkout."
+    )
 
 
 def _resolve_schemas_ref(source: Path) -> str:
