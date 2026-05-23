@@ -245,7 +245,19 @@ def test_create_project_copies_only_content_payload(tmp_path: Path, monkeypatch:
     project_yaml = yaml.safe_load((target / "project.yaml").read_text())
     assert project_yaml["schema_version"] == SCHEMA_VERSION
     assert project_yaml["source_files"]["phpp_path"] == "../07_PHPP/model.xlsx"
-    assert project_yaml["narrative"]["climate"]["weather_station_name"] == "TBD"
+    # Required-but-uncustomized strings render as "TBD"; optional narrative
+    # fields render as null. The schema-driven stub must surface every key
+    # the Pydantic model declares so adding a field never silently drops it.
+    assert project_yaml["target_standard"] == "TBD"
+    assert project_yaml["building"]["address"] == "TBD"
+    narrative = project_yaml["narrative"]
+    assert narrative["climate"]["weather_station_name"] is None
+    assert narrative["certification"]["target"] is None
+    assert narrative["energy_code"]["name"] is None
+    assert narrative["co2"]["epa_subgrid_name"] is None
+    assert narrative["windows"]["comfort_target_u_value"] is None
+    assert narrative["mechanical"]["erv"]["manufacturer_name"] is None
+    assert narrative["user_defined"] == {}
     validate_project_yaml(target)
 
 

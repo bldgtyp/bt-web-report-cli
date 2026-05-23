@@ -7,15 +7,18 @@ import os
 import shlex
 import shutil
 import subprocess
+import typing
 from datetime import date
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 import yaml
+from pydantic import BaseModel
+from pydantic.fields import FieldInfo
 
 from bt_web_report_cli.runtime import resolve_renderer_source
-from bt_web_report_schemas.project import SCHEMA_VERSION
+from bt_web_report_schemas.project import SCHEMA_VERSION, Project
 
 CONTENT_PAYLOAD = ("content", "data", "public", ".gitignore", ".dropboxignore", ".editorconfig", "README.md")
 IGNORED_TEMPLATE_CONTENT_NAMES = {"node_modules", "dist", ".astro", "recommended-assemblies.zip"}
@@ -170,7 +173,7 @@ def _write_project_yaml(
     phpp_path = ""
     if phpp is not None:
         phpp_path = os.path.relpath(phpp.expanduser().resolve(), target)
-    value = {
+    overrides: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "slug": slug,
         "project_title": title,
@@ -180,16 +183,6 @@ def _write_project_yaml(
         "report_date": date.today().isoformat(),
         "prepared_by": "bldgtyp, llc",
         "contact_email": "ed@bldgtyp.com",
-        "target_standard": "TBD",
-        "certification_program": "TBD",
-        "certification_path": "TBD",
-        "building": {
-            "address": "TBD",
-            "city": "TBD",
-            "state": "TBD",
-            "climate_zone": "TBD",
-            "building_type": "TBD",
-        },
         "source_files": {
             "phpp_path": phpp_path,
             "data_dir": "data",
@@ -199,15 +192,61 @@ def _write_project_yaml(
             "production_url": production_url,
             "cloudflare_pages_project": cloudflare_pages_project,
         },
-        "narrative": {
-            "climate": {
-                "weather_station_name": "TBD",
-                "state_name": "TBD",
-                "ashrae_location_name": "TBD",
-            },
-        },
     }
+    value = _stub_from_model(Project, overrides)
+    # Round-trip through the schema so any drift between this generator and
+    # the Project model surfaces at `btwr new` time, not later.
+    Project.model_validate(value)
     (target / "project.yaml").write_text(yaml.safe_dump(value, sort_keys=False))
+
+
+def _stub_from_model(model_cls: type[BaseModel], overrides: dict[str, Any]) -> dict[str, Any]:
+    """Build a stub dict by walking ``model_cls.model_fields``.
+
+    Every field declared on the model appears in the output, so adding a new
+    field to ``project.yaml`` only requires updating the Pydantic schema —
+    `btwr new` picks it up automatically. ``overrides`` carries caller-supplied
+    values; for nested-model fields, a dict override is merged recursively so
+    the caller only has to supply the keys it actually knows.
+    """
+    result: dict[str, Any] = {}
+    for name, info in model_cls.model_fields.items():
+        if name in overrides:
+            override = overrides[name]
+            annotation = info.annotation
+            if (
+                isinstance(override, dict)
+                and isinstance(annotation, type)
+                and issubclass(annotation, BaseModel)
+            ):
+                result[name] = _stub_from_model(annotation, override)
+            else:
+                result[name] = override
+            continue
+        result[name] = _stub_value(info)
+    return result
+
+
+def _stub_value(info: FieldInfo) -> Any:
+    """Derive a placeholder value for one field from its Pydantic metadata."""
+    annotation = info.annotation
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return _stub_from_model(annotation, {})
+    if not info.is_required():
+        if info.default_factory is not None:
+            produced = info.default_factory()
+            if isinstance(produced, BaseModel):
+                return _stub_from_model(type(produced), {})
+            return produced
+        return info.default
+    origin = typing.get_origin(annotation)
+    if origin is typing.Literal:
+        args = typing.get_args(annotation)
+        if len(args) == 1:
+            return args[0]
+    if annotation is str:
+        return "TBD"
+    return None
 
 
 def _resolve_renderer_ref(source: Path) -> str:
