@@ -203,6 +203,16 @@ def test_run_renderer_script_points_local_renderer_at_sibling_project_schema(
     assert env[PROJECT_SCHEMA_JSON_ENV] == str(schema.resolve())
 
 
+def _patch_resolvers(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    renderer_ref: str = "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+    schemas_ref: str = "ssssssssssssssssssssssssssssssssssssssss",
+) -> None:
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: renderer_ref)
+    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_schemas_ref", lambda _source: schemas_ref)
+
+
 def test_create_project_copies_only_content_payload(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     renderer = _make_renderer(tmp_path / "renderer")
     stale_archive = renderer / "public" / "assets" / "envelope" / "assemblies" / "recommended-assemblies.zip"
@@ -212,7 +222,7 @@ def test_create_project_copies_only_content_payload(tmp_path: Path, monkeypatch:
     phpp = tmp_path / "Project" / "07_PHPP" / "model.xlsx"
     phpp.parent.mkdir(parents=True)
     phpp.write_text("fixture")
-    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
+    _patch_resolvers(monkeypatch)
 
     create_project(
         target,
@@ -239,76 +249,113 @@ def test_create_project_copies_only_content_payload(tmp_path: Path, monkeypatch:
     validate_project_yaml(target)
 
 
-def test_create_project_pins_reusable_workflow_to_resolved_ref(
+def test_create_project_seeds_per_project_workflows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The seed copies scripts/per-project-{ci,deploy}.yml — NOT the template's own workflows.
+
+    The bug this prevents: copying the template's own .github/workflows/ would
+    bring `manage-custom-domain: false` (correct for the demo deploy, wrong
+    for per-project) into every new project.
+    """
+
+    renderer = _make_renderer(tmp_path / "renderer")
+    # Plant a wrong workflow at the template's .github/workflows/ to prove
+    # the seed never reads from there.
+    template_own = renderer / ".github" / "workflows" / "ci.yml"
+    template_own.parent.mkdir(parents=True)
+    template_own.write_text("name: WRONG\n")
+    target = tmp_path / "Project" / "04_Web"
+    _patch_resolvers(monkeypatch)
+
+    create_project(
+        target,
+        slug="project-2606",
+        title="2606 Vandam",
+        repo="bt-proj-2606-vandam",
+        production_url="https://project-2606.bldgtyp.com",
+        renderer_source=renderer,
+        init_git=False,
+    )
+
+    ci_text = (target / ".github" / "workflows" / "ci.yml").read_text()
+    deploy_text = (target / ".github" / "workflows" / "deploy.yml").read_text()
+    # The right workflows came from scripts/per-project-*.yml; not from the
+    # template's own ci.yml (which we planted as "name: WRONG" above).
+    assert "WRONG" not in ci_text
+    assert ci_text.startswith("name: CI\n")
+    assert deploy_text.startswith("name: Deploy\n")
+
+
+def test_create_project_pins_per_project_workflow_to_renderer_and_schemas_refs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The seeded per-project ci.yml has its uses/renderer-ref/schemas-ref all pinned."""
+
     renderer = _make_renderer(tmp_path / "renderer")
-    workflow = renderer / ".github" / "workflows" / "ci.yml"
-    workflow.parent.mkdir(parents=True)
-    workflow.write_text(
+    target = tmp_path / "Project" / "04_Web"
+    _patch_resolvers(monkeypatch, renderer_ref="rfaceb0a", schemas_ref="s5ec00ba")
+
+    create_project(
+        target,
+        slug="project-2606",
+        title="2606 Vandam",
+        repo="bt-proj-2606-vandam",
+        production_url="https://project-2606.bldgtyp.com",
+        renderer_source=renderer,
+        init_git=False,
+    )
+
+    ci_text = (target / ".github" / "workflows" / "ci.yml").read_text()
+    deploy_text = (target / ".github" / "workflows" / "deploy.yml").read_text()
+    for text in (ci_text, deploy_text):
+        assert (
+            "uses: bldgtyp/bt-web-report-template/.github/workflows/_renderer-build.yml@rfaceb0a"
+        ) in text
+        assert "renderer-ref: rfaceb0a" in text
+        assert "schemas-ref: s5ec00ba" in text
+        assert "@main" not in text
+        assert ": main" not in text
+
+
+def test_create_project_pins_legacy_local_reusable_workflow_form(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Back-compat: a hand-edited workflow using the template's `./` local form is still pinned.
+
+    This codepath exists because someone might copy the template's own ci.yml
+    into a project repo manually. The seed itself never does this — see
+    test_create_project_seeds_per_project_workflows — but the pinning logic
+    still has to handle it for safety.
+    """
+
+    renderer = _make_renderer(tmp_path / "renderer")
+    target = tmp_path / "Project" / "04_Web"
+    # Pre-create the project workflow in the "wrong" (local `./`) form to
+    # exercise the back-compat branch in _pin_renderer_workflows.
+    workflows = target / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "ci.yml").write_text(
         "jobs:\n"
         "  build:\n"
         "    uses: ./.github/workflows/_renderer-build.yml\n"
         "    with:\n"
-        "      project-repo: ${{ github.repository }}\n"
-        "      project-ref: ${{ github.ref }}\n"
         "      renderer-ref: ${{ github.sha }}\n"
         "      schemas-ref: main\n"
-        "      run-deploy: false\n"
     )
-    target = tmp_path / "Project" / "04_Web"
-    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
+    _patch_resolvers(monkeypatch, renderer_ref="rdeadbee", schemas_ref="sbeefcaf")
 
-    create_project(
-        target,
-        slug="project-2606",
-        title="2606 Vandam",
-        repo="bt-proj-2606-vandam",
-        production_url="https://project-2606.bldgtyp.com",
-        renderer_source=renderer,
-        init_git=False,
-    )
+    # Note: we manually invoke _pin_renderer_workflows here because
+    # create_project would otherwise overwrite ci.yml from the per-project
+    # template. The test isolates the pin-logic back-compat branch.
+    from bt_web_report_cli.new_project import _pin_renderer_workflows
 
-    copied_workflow = (target / ".github" / "workflows" / "ci.yml").read_text()
-    assert "uses: bldgtyp/bt-web-report-template/.github/workflows/_renderer-build.yml@abc123" in copied_workflow
-    assert "renderer-ref: abc123" in copied_workflow
-    assert "renderer-ref: ${{ github.sha }}" not in copied_workflow
-    assert "./.github/workflows/_renderer-build.yml" not in copied_workflow
+    _pin_renderer_workflows(target, renderer_ref="rdeadbee", schemas_ref="sbeefcaf")
 
-
-def test_create_project_pins_legacy_repository_block(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Back-compat: still pins the old (pre-reusable-workflow) structure if encountered."""
-
-    renderer = _make_renderer(tmp_path / "renderer")
-    workflow = renderer / ".github" / "workflows" / "ci.yml"
-    workflow.parent.mkdir(parents=True)
-    workflow.write_text(
-        "jobs:\n"
-        "  build:\n"
-        "    steps:\n"
-        "      - name: Checkout shared renderer\n"
-        "        uses: actions/checkout@v4\n"
-        "        with:\n"
-        "          repository: bldgtyp/bt-web-report-template\n"
-        "          path: renderer\n"
-    )
-    target = tmp_path / "Project" / "04_Web"
-    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
-
-    create_project(
-        target,
-        slug="project-2606",
-        title="2606 Vandam",
-        repo="bt-proj-2606-vandam",
-        production_url="https://project-2606.bldgtyp.com",
-        renderer_source=renderer,
-        init_git=False,
-    )
-
-    copied_workflow = (target / ".github" / "workflows" / "ci.yml").read_text()
+    ci_text = (workflows / "ci.yml").read_text()
     assert (
-        "repository: bldgtyp/bt-web-report-template\n          ref: abc123\n          path: renderer" in copied_workflow
-    )
+        "uses: bldgtyp/bt-web-report-template/.github/workflows/_renderer-build.yml@rdeadbee"
+    ) in ci_text
+    assert "renderer-ref: rdeadbee" in ci_text
+    assert "schemas-ref: sbeefcaf" in ci_text
 
 
 def test_resolve_renderer_ref_refuses_unspecified_default(
@@ -364,6 +411,64 @@ def test_resolve_renderer_ref_head_resolves_to_sha(tmp_path: Path, monkeypatch: 
     assert _resolve_renderer_ref(tmp_path) == "deadbeef"
 
 
+def test_resolve_schemas_ref_explicit_override_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from bt_web_report_cli.new_project import SCHEMAS_REF_ENV, _resolve_schemas_ref
+
+    monkeypatch.setenv(SCHEMAS_REF_ENV, "v9.9.9")
+    assert _resolve_schemas_ref(tmp_path) == "v9.9.9"
+
+
+def test_resolve_schemas_ref_refuses_floating_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from bt_web_report_cli.new_project import SCHEMAS_REF_ENV, _resolve_schemas_ref
+
+    monkeypatch.setenv(SCHEMAS_REF_ENV, "main")
+    with pytest.raises(RuntimeError, match="floating branch"):
+        _resolve_schemas_ref(tmp_path)
+
+
+def test_resolve_schemas_ref_resolves_from_workspace_sibling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No env override → look at the workspace-sibling bt-web-report-schemas checkout."""
+
+    from bt_web_report_cli.new_project import SCHEMAS_REF_ENV, _resolve_schemas_ref
+
+    workspace = tmp_path / "workspace"
+    renderer = workspace / "bt-web-report-template"
+    schemas = workspace / "bt-web-report-schemas"
+    renderer.mkdir(parents=True)
+    schemas.mkdir(parents=True)
+    monkeypatch.delenv(SCHEMAS_REF_ENV, raising=False)
+
+    def fake_run(args, cwd=None, check=True):
+        # The resolver runs `git rev-parse HEAD` in the schemas sibling dir.
+        if tuple(args) == ("git", "rev-parse", "HEAD") and cwd == schemas:
+            return subprocess.CompletedProcess(args, 0, stdout="s1eedbeef\n", stderr="")
+        return subprocess.run(tuple(args), cwd=cwd, text=True, capture_output=True)
+
+    monkeypatch.setattr("bt_web_report_cli.new_project._run_command", fake_run)
+    assert _resolve_schemas_ref(renderer) == "s1eedbeef"
+
+
+def test_resolve_schemas_ref_errors_when_sibling_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from bt_web_report_cli.new_project import SCHEMAS_REF_ENV, _resolve_schemas_ref
+
+    monkeypatch.delenv(SCHEMAS_REF_ENV, raising=False)
+    workspace = tmp_path / "workspace"
+    renderer = workspace / "bt-web-report-template"
+    renderer.mkdir(parents=True)
+    # No sibling bt-web-report-schemas/ — resolver must raise.
+
+    with pytest.raises(RuntimeError, match="sibling checkout"):
+        _resolve_schemas_ref(renderer)
+
+
 def test_create_project_ignores_ds_store_in_existing_target(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -371,7 +476,7 @@ def test_create_project_ignores_ds_store_in_existing_target(
     target = tmp_path / "Project" / "04_Web"
     target.mkdir(parents=True)
     (target / ".DS_Store").write_text("finder")
-    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
+    _patch_resolvers(monkeypatch)
 
     create_project(
         target,
@@ -394,7 +499,7 @@ def test_create_project_requires_overwrite_for_real_existing_content(
     target = tmp_path / "Project" / "04_Web"
     target.mkdir(parents=True)
     (target / "old.md").write_text("old")
-    monkeypatch.setattr("bt_web_report_cli.new_project._resolve_renderer_ref", lambda _source: "abc123")
+    _patch_resolvers(monkeypatch)
 
     with pytest.raises(RuntimeError, match="not empty"):
         create_project(
@@ -571,6 +676,38 @@ def _make_renderer(path: Path) -> Path:
     (path / "src" / "pages").mkdir()
     (path / "src" / "pages" / "index.astro").write_text("---\n---\n")
     (path / "scripts").mkdir()
+    # Per-project workflow templates — the seed source for every new project's
+    # .github/workflows/{ci,deploy}.yml. The shape mirrors the real files
+    # in bt-web-report-template/scripts/.
+    (path / "scripts" / "per-project-ci.yml").write_text(
+        "name: CI\n"
+        "on:\n  push:\n    branches: [main]\n"
+        "jobs:\n"
+        "  build:\n"
+        "    uses: bldgtyp/bt-web-report-template/.github/workflows/_renderer-build.yml@main\n"
+        "    with:\n"
+        "      project-repo: ${{ github.repository }}\n"
+        "      project-ref: ${{ github.ref }}\n"
+        "      renderer-ref: main\n"
+        "      schemas-ref: main\n"
+        "      run-deploy: false\n"
+    )
+    (path / "scripts" / "per-project-deploy.yml").write_text(
+        "name: Deploy\n"
+        "on:\n  push:\n    branches: [main]\n"
+        "jobs:\n"
+        "  deploy:\n"
+        "    uses: bldgtyp/bt-web-report-template/.github/workflows/_renderer-build.yml@main\n"
+        "    with:\n"
+        "      project-repo: ${{ github.repository }}\n"
+        "      project-ref: ${{ github.ref }}\n"
+        "      renderer-ref: main\n"
+        "      schemas-ref: main\n"
+        "      run-deploy: true\n"
+        "    secrets:\n"
+        "      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}\n"
+        "      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}\n"
+    )
     (path / "tina" / "__generated__").mkdir(parents=True)
     (path / "tina" / "__generated__" / "_lookup.json").write_text("{}\n")
     (path / "node_modules").mkdir()

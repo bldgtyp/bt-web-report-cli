@@ -17,11 +17,23 @@ import yaml
 from bt_web_report_cli.runtime import resolve_renderer_source
 from bt_web_report_schemas.project import SCHEMA_VERSION
 
-CONTENT_PAYLOAD = ("content", "data", "public", ".github", ".gitignore", ".dropboxignore", ".editorconfig", "README.md")
+CONTENT_PAYLOAD = ("content", "data", "public", ".gitignore", ".dropboxignore", ".editorconfig", "README.md")
 IGNORED_TEMPLATE_CONTENT_NAMES = {"node_modules", "dist", ".astro", "recommended-assemblies.zip"}
 IGNORED_EXISTING_NAMES = {".DS_Store", ".localized", "Icon\r", "desktop.ini", "Thumbs.db"}
 RENDERER_REF_ENV = "BTWR_RENDERER_REF"
+SCHEMAS_REF_ENV = "BTWR_SCHEMAS_REF"
 RENDERER_WORKFLOWS = (Path(".github/workflows/ci.yml"), Path(".github/workflows/deploy.yml"))
+
+# Per-project workflow templates that ship inside the template repo under
+# `scripts/`. These are the canonical sources for what `btwr new` writes
+# into each project's `.github/workflows/`. We never copy the template's
+# own `.github/workflows/{ci,deploy}.yml` — those describe the template's
+# own builds and contain settings (e.g. `manage-custom-domain: false`)
+# that are wrong for per-project deploys.
+PER_PROJECT_WORKFLOW_SOURCES = (
+    (Path("scripts/per-project-ci.yml"), Path(".github/workflows/ci.yml")),
+    (Path("scripts/per-project-deploy.yml"), Path(".github/workflows/deploy.yml")),
+)
 
 
 @dataclass(frozen=True)
@@ -73,7 +85,12 @@ def create_project(
         else:
             shutil.copy2(item, destination)
 
-    _pin_renderer_workflows(target, _resolve_renderer_ref(source))
+    _seed_per_project_workflows(source, target)
+    _pin_renderer_workflows(
+        target,
+        renderer_ref=_resolve_renderer_ref(source),
+        schemas_ref=_resolve_schemas_ref(source),
+    )
 
     _write_project_yaml(
         target,
@@ -226,23 +243,88 @@ def _resolve_renderer_ref(source: Path) -> str:
     return override
 
 
+def _resolve_schemas_ref(source: Path) -> str:
+    """Resolve the explicit schemas ref to pin per-project workflow inputs to.
+
+    Resolution order:
+      1. ``BTWR_SCHEMAS_REF`` env var (HEAD → resolve via the sibling checkout).
+      2. ``<source>/../bt-web-report-schemas`` HEAD (the workspace sibling).
+      3. RuntimeError — schemas pinning is required for deterministic builds.
+
+    Like :func:`_resolve_renderer_ref`, refuses floating ``main`` / ``master``.
+    """
+
+    override = os.environ.get(SCHEMAS_REF_ENV)
+    sibling = source.parent / "bt-web-report-schemas"
+
+    if override and override.upper() != "HEAD":
+        if override in {"main", "master"}:
+            raise RuntimeError(
+                f"{SCHEMAS_REF_ENV}={override!r} is a floating branch — pin to an explicit "
+                "SHA or tag instead."
+            )
+        return override
+
+    # Either no override or override == HEAD; both resolve via the sibling checkout.
+    if not sibling.exists():
+        raise RuntimeError(
+            f"Cannot resolve schemas ref: sibling checkout {sibling} does not exist. "
+            f"Either set {SCHEMAS_REF_ENV} to an explicit SHA, or clone "
+            "bt-web-report-schemas alongside the template."
+        )
+    result = _run_command(("git", "rev-parse", "HEAD"), cwd=sibling, check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        raise RuntimeError(
+            f"`git rev-parse HEAD` failed in {sibling}. Set {SCHEMAS_REF_ENV} to an "
+            "explicit SHA to bypass auto-resolution."
+        )
+    return result.stdout.strip()
+
+
+def _seed_per_project_workflows(source: Path, target: Path) -> None:
+    """Copy ``scripts/per-project-{ci,deploy}.yml`` → project's ``.github/workflows/``.
+
+    These templates are the canonical per-project workflow shape (cross-repo
+    `uses:`, correct `manage-custom-domain` default, no `BLDGTYP_PACKAGES_TOKEN`
+    secret). The seed never copies the template repo's own
+    ``.github/workflows/{ci,deploy}.yml`` files — those describe the template's
+    own CI and contain settings (e.g. ``manage-custom-domain: false``) that
+    are wrong for per-project deploys.
+    """
+
+    for source_rel, target_rel in PER_PROJECT_WORKFLOW_SOURCES:
+        src = source / source_rel
+        if not src.exists():
+            raise RuntimeError(
+                f"Template is missing required seed workflow: {src}. "
+                "The template's `scripts/per-project-*.yml` files are the source "
+                "of truth for per-project workflows."
+            )
+        dst = target / target_rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+
+
 _LOCAL_REUSABLE_PREFIX = "uses: ./.github/workflows/"
+_CROSS_REPO_REUSABLE_PREFIX = "uses: bldgtyp/bt-web-report-template/.github/workflows/"
 _CROSS_REPO_USES_TEMPLATE = "uses: bldgtyp/bt-web-report-template/.github/workflows/{name}@{ref}"
 
 
-def _pin_renderer_workflows(target: Path, renderer_ref: str) -> None:
-    """Rewrite per-project workflow files so they call the template's reusable
-    workflow cross-repo at the pinned renderer ref.
+def _pin_renderer_workflows(target: Path, *, renderer_ref: str, schemas_ref: str) -> None:
+    """Rewrite per-project workflow files to pin all template refs.
 
-    The template repo's own workflows reference the reusable workflow as
-    ``uses: ./.github/workflows/_renderer-build.yml``. Per-project repos don't
-    have that file locally; they need to call it cross-repo as
-    ``uses: bldgtyp/bt-web-report-template/.github/workflows/_renderer-build.yml@<ref>``.
+    Three forms are handled:
+      1. ``uses: ./.github/workflows/<name>`` (template's own local form) →
+         rewritten to cross-repo with the renderer SHA.
+      2. ``uses: bldgtyp/bt-web-report-template/.github/workflows/<name>@<ref>``
+         (per-project-*.yml form, where ``<ref>`` is typically ``main``) →
+         the ``@<ref>`` suffix is replaced with the renderer SHA.
+      3. ``renderer-ref:`` / ``schemas-ref:`` workflow inputs → rewritten to
+         the resolved renderer / schemas SHA respectively.
 
-    Also pins any ``renderer-ref: ${{ github.sha }}`` and legacy
-    ``repository: bldgtyp/bt-web-report-template`` blocks to the resolved ref,
-    so the per-project repo always uses the same template revision it was
-    created from.
+    Legacy ``repository: bldgtyp/bt-web-report-template`` blocks are also
+    pinned for back-compat with any older workflow shape that might still
+    show up in a hand-edited project repo.
     """
 
     for relative_path in RENDERER_WORKFLOWS:
@@ -263,8 +345,24 @@ def _pin_renderer_workflows(target: Path, renderer_ref: str) -> None:
                 index += 1
                 continue
 
+            if stripped.startswith(_CROSS_REPO_REUSABLE_PREFIX):
+                # `uses: bldgtyp/bt-web-report-template/.github/workflows/<name>@<ref>`
+                tail = stripped[len(_CROSS_REPO_REUSABLE_PREFIX) :]
+                if "@" in tail:
+                    workflow_name = tail.split("@", 1)[0]
+                else:
+                    workflow_name = tail
+                pinned.append(indent + _CROSS_REPO_USES_TEMPLATE.format(name=workflow_name, ref=renderer_ref))
+                index += 1
+                continue
+
             if stripped.startswith("renderer-ref:"):
                 pinned.append(f"{indent}renderer-ref: {renderer_ref}")
+                index += 1
+                continue
+
+            if stripped.startswith("schemas-ref:"):
+                pinned.append(f"{indent}schemas-ref: {schemas_ref}")
                 index += 1
                 continue
 
