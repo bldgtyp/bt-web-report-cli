@@ -1,10 +1,9 @@
 """Shared renderer runtime for content-only project repositories.
 
 There is exactly ONE ``node_modules`` directory in the entire system:
-the workspace template's
-``~/Dropbox/bldgtyp-00/00_PH_Tools/bt-web-report/bt-web-report-template/node_modules/``.
+the workspace template's ``bt-web-report-template/node_modules/``.
 ``btwr build / preview / editor`` create disposable runtime workspaces
-at ``~/Dropbox/bldgtyp-00/00_PH_Tools/bt-web-report/.builds/{builds,previews}/<slug>/``
+at ``<workspace>/.builds/{builds,previews}/<slug>/``
 and symlink that single ``node_modules`` in. No per-project install,
 no app-support copy, no second ``node_modules`` anywhere.
 
@@ -38,7 +37,7 @@ PROJECT_SCHEMA_JSON_ENV = "BTWR_PROJECT_SCHEMA_JSON"
 TINA_CONTENT_ROOT_ENV = "BTWR_TINA_CONTENT_ROOT"
 
 APP_SUPPORT_DEFAULT = Path("~/Library/Application Support/bt-web-report-manager").expanduser()
-WORKSPACE_BUILDS_DEFAULT = Path("~/Dropbox/bldgtyp-00/00_PH_Tools/bt-web-report/.builds").expanduser()
+WORKSPACE_ROOT_FALLBACK = Path("~/Dropbox/bldgtyp-00/00_PH_Tools/bldgtyp/bt-web-report").expanduser()
 
 REMOVE_RETRY_DELAYS = (0.1, 0.25, 0.5)
 REMOVE_RETRY_ERRNOS = {errno.ENOTEMPTY, errno.EBUSY, errno.EPERM}
@@ -97,7 +96,10 @@ def builds_root() -> Path:
     override = os.environ.get(BUILDS_ROOT_ENV)
     if override:
         return Path(override).expanduser()
-    return WORKSPACE_BUILDS_DEFAULT
+    workspace_root = _workspace_root_from_source()
+    if workspace_root is not None:
+        return workspace_root / ".builds"
+    return WORKSPACE_ROOT_FALLBACK / ".builds"
 
 
 def resolve_renderer_source(explicit: Path | None = None) -> Path | None:
@@ -109,11 +111,22 @@ def resolve_renderer_source(explicit: Path | None = None) -> Path | None:
     if env_value:
         return Path(env_value).expanduser().resolve()
 
+    workspace_root = _workspace_root_from_source()
+    if workspace_root is not None:
+        return workspace_root / "bt-web-report-template"
+    return None
+
+
+def _workspace_root_from_source() -> Path | None:
+    """Find the local multi-repo workspace from an editable CLI checkout."""
+
     current = Path(__file__).resolve()
     for parent in current.parents:
         candidate = parent / "bt-web-report-template"
         if (candidate / "package.json").exists() and (candidate / "src").exists():
-            return candidate
+            return parent
+    if (WORKSPACE_ROOT_FALLBACK / "bt-web-report-template" / "package.json").exists():
+        return WORKSPACE_ROOT_FALLBACK
     return None
 
 
