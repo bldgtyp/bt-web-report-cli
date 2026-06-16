@@ -215,6 +215,38 @@ def build(project_path: Path, renderer_source: Path | None, pnpm_executable: str
     click.echo(f"built {project_path}: {workspace.workspace_path / 'dist'}")
 
 
+@main.command("build-pdf")
+@click.argument("project_path", type=click.Path(exists=True, path_type=Path))
+@click.option("--renderer-source", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option("--pnpm", "pnpm_executable", default="pnpm", show_default=True)
+@click.option("--skip-install", is_flag=True, help="Do not install renderer dependencies.")
+def build_pdf(project_path: Path, renderer_source: Path | None, pnpm_executable: str, skip_install: bool) -> None:
+    """Build the client-deliverable report.pdf through the shared renderer.
+
+    Runs the renderer's ``build:pdf`` script (full site build + Paged.js PDF
+    capture) in a disposable runtime workspace and prints the resulting
+    ``report.pdf`` path. Intended for pre-publish QA: the same artifact CI
+    ships on deploy, produced locally so it can be reviewed before pushing.
+    """
+
+    try:
+        workspace = run_renderer_script(
+            project_path,
+            "build:pdf",
+            kind="build",
+            renderer_source=renderer_source,
+            pnpm_executable=pnpm_executable,
+            install=not skip_install,
+        )
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+    pdf_path = workspace.workspace_path / "dist" / "report.pdf"
+    if not pdf_path.exists():
+        raise click.ClickException(f"build:pdf completed but {pdf_path} was not produced.")
+    # Stable, parseable marker the Manager scans for to open the PDF.
+    click.echo(f"PDF ready: {pdf_path}")
+
+
 @main.command()
 @click.argument("project_path", type=click.Path(exists=True, path_type=Path))
 @click.option("--renderer-source", type=click.Path(exists=True, file_okay=False, path_type=Path))
