@@ -13,16 +13,16 @@ def test_create_image_pair_writes_display_and_full_images_returns_project_urls(t
     project = _make_project(tmp_path / "04_Web")
     source = _make_source_image(tmp_path / "source.png", size=(2200, 1700))
 
-    result = create_image_pair(project, source, "windows/radiation/winter.png")
+    result = create_image_pair(project, source, "windows/radiation/winter.optimized.png")
 
-    assert result.display_url == "/assets/windows/radiation/winter.png"
-    assert result.full_url == "/assets/windows/radiation/winter-full.png"
+    assert result.display_url == "/assets/windows/radiation/winter.optimized.png"
+    assert result.full_url == "/assets/windows/radiation/winter.full.png"
     assert result.display_size.width == 1200
     assert result.display_size.height == 927
     assert result.full_size.width == 2200
     assert result.full_size.height == 1700
-    assert result.display_path == project / "public" / "assets" / "windows" / "radiation" / "winter.png"
-    assert result.full_path == project / "public" / "assets" / "windows" / "radiation" / "winter-full.png"
+    assert result.display_path == project / "public" / "assets" / "windows" / "radiation" / "winter.optimized.png"
+    assert result.full_path == project / "public" / "assets" / "windows" / "radiation" / "winter.full.png"
     assert _image_size(result.display_path) == (1200, 927)
     assert _image_size(result.full_path) == (2200, 1700)
 
@@ -35,7 +35,7 @@ def test_create_image_pair_uses_project_assets_dir(tmp_path: Path) -> None:
 
     assert resolve_assets_dir(project) == project / "public" / "custom-assets"
     assert result.display_url == "/custom-assets/cover/hero.jpg"
-    assert result.full_url == "/custom-assets/cover/hero-full.jpg"
+    assert result.full_url == "/custom-assets/cover/hero.full.jpg"
     assert _image_size(result.display_path) == (600, 300)
     assert _image_size(result.full_path) == (600, 300)
 
@@ -54,21 +54,21 @@ def test_create_image_pair_refuses_unsafe_asset_paths(tmp_path: Path) -> None:
         create_image_pair(project, source, "cover/hero")
 
     with pytest.raises(ValueError, match="must be different"):
-        create_image_pair(project, source, "cover/hero.png", full_asset_path="cover/hero.png")
+        create_image_pair(project, source, "cover/hero.optimized.png", full_asset_path="cover/hero.optimized.png")
 
 
 def test_create_image_pair_refuses_overwrite_without_flag(tmp_path: Path) -> None:
     project = _make_project(tmp_path / "04_Web")
     source = _make_source_image(tmp_path / "source.png")
 
-    create_image_pair(project, source, "cover/hero.png")
+    create_image_pair(project, source, "cover/hero.optimized.png")
 
     with pytest.raises(FileExistsError, match="already exists"):
-        create_image_pair(project, source, "cover/hero.png")
+        create_image_pair(project, source, "cover/hero.optimized.png")
 
-    result = create_image_pair(project, source, "cover/hero.png", overwrite=True)
+    result = create_image_pair(project, source, "cover/hero.optimized.png", overwrite=True)
 
-    assert result.display_url == "/assets/cover/hero.png"
+    assert result.display_url == "/assets/cover/hero.optimized.png"
 
 
 def test_image_pair_cli_prints_json_for_manager(tmp_path: Path) -> None:
@@ -83,7 +83,7 @@ def test_image_pair_cli_prints_json_for_manager(tmp_path: Path) -> None:
             str(project),
             str(source),
             "--asset-path",
-            "cover/hero.png",
+            "cover/hero.optimized.png",
             "--max-width",
             "800",
         ],
@@ -91,8 +91,8 @@ def test_image_pair_cli_prints_json_for_manager(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["display_url"] == "/assets/cover/hero.png"
-    assert payload["full_url"] == "/assets/cover/hero-full.png"
+    assert payload["display_url"] == "/assets/cover/hero.optimized.png"
+    assert payload["full_url"] == "/assets/cover/hero.full.png"
     assert payload["display_size"] == {"width": 800, "height": 450}
     assert payload["full_size"] == {"width": 1600, "height": 900}
 

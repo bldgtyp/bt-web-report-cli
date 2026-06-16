@@ -27,7 +27,7 @@ write into MDX frontmatter:
 
 ```bash
 btwr assets image-pair /path/to/04_Web /path/to/source.png \
-  --asset-path windows/radiation/winter.png
+  --asset-path windows/radiation/winter.optimized.png
 ```
 
 ## Dev quickstart

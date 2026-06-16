@@ -49,7 +49,7 @@ def create_image_pair(
 
     `asset_path` and `full_asset_path` are relative to the project's configured
     assets directory, normally `public/assets`. Returned URLs are project-root
-    web URLs such as `/assets/windows/radiation/winter.png`.
+    web URLs such as `/assets/windows/radiation/winter.optimized.png`.
     """
 
     project = project_path.expanduser().resolve()
@@ -146,7 +146,9 @@ def _clean_asset_path(value: str | Path) -> PurePosixPath:
 
 
 def _default_full_path(asset_path: PurePosixPath) -> PurePosixPath:
-    return asset_path.with_name(f"{asset_path.stem}-full{asset_path.suffix}")
+    if asset_path.stem.endswith(".optimized"):
+        return asset_path.with_name(f"{asset_path.stem.removesuffix('.optimized')}.full{asset_path.suffix}")
+    return asset_path.with_name(f"{asset_path.stem}.full{asset_path.suffix}")
 
 
 def _guard_output(path: Path, *, overwrite: bool) -> None:

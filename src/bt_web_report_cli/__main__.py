@@ -28,11 +28,11 @@ def assets() -> None:
 @click.option(
     "--asset-path",
     required=True,
-    help="Display image path relative to the project's assets dir, e.g. windows/radiation/winter.png.",
+    help="Display image path relative to the project's assets dir, e.g. windows/radiation/winter.optimized.png.",
 )
 @click.option(
     "--full-asset-path",
-    help="High-resolution image path relative to the project's assets dir. Defaults to '<stem>-full<ext>'.",
+    help="High-resolution image path relative to the project's assets dir. Defaults to '<stem>.full<ext>'.",
 )
 @click.option("--max-width", default=1200, show_default=True, help="Maximum display-image width in pixels.")
 @click.option("--max-height", type=int, help="Optional maximum display-image height in pixels.")
