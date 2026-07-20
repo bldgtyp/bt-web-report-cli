@@ -194,6 +194,9 @@ def _write_project_yaml(
         },
     }
     value = _stub_from_model(Project, overrides)
+    # Custom pages are opt-in and should not add empty feature configuration
+    # to every standard project scaffold.
+    value.pop("custom_pages", None)
     # Round-trip through the schema so any drift between this generator and
     # the Project model surfaces at `btwr new` time, not later.
     Project.model_validate(value)
@@ -230,15 +233,15 @@ def _stub_from_model(model_cls: type[BaseModel], overrides: dict[str, Any]) -> d
 def _stub_value(info: FieldInfo) -> Any:
     """Derive a placeholder value for one field from its Pydantic metadata."""
     annotation = info.annotation
-    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-        return _stub_from_model(annotation, {})
     if not info.is_required():
         if info.default_factory is not None:
             produced = info.default_factory()
             if isinstance(produced, BaseModel):
-                return _stub_from_model(type(produced), {})
+                return produced.model_dump(mode="python")
             return produced
         return info.default
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return _stub_from_model(annotation, {})
     origin = typing.get_origin(annotation)
     if origin is typing.Literal:
         args = typing.get_args(annotation)

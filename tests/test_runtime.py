@@ -244,6 +244,7 @@ def test_create_project_copies_only_content_payload(tmp_path: Path, monkeypatch:
     assert not (target / "node_modules").exists()
     project_yaml = yaml.safe_load((target / "project.yaml").read_text())
     assert project_yaml["schema_version"] == SCHEMA_VERSION
+    assert "custom_pages" not in project_yaml
     assert project_yaml["source_files"]["phpp_path"] == "../07_PHPP/model.xlsx"
     assert project_yaml["publishing"]["access"] == {"mode": "public", "allowed_emails": []}
     # Required-but-uncustomized strings render as "TBD"; optional narrative
