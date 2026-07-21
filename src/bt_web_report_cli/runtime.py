@@ -10,7 +10,7 @@ no app-support copy, no second ``node_modules`` anywhere.
 This is the absolute, non-negotiable rule for the bt-web-report platform:
 no ``node_modules`` ever exists inside a per-project repo, and only the
 workspace template hosts one centrally. See
-`context/legacy/design.html` and the project-rebuild constraint thread.
+`context/repos-and-workflows.html#project-shape` (per-project repos are content-only).
 """
 
 from __future__ import annotations

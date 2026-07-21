@@ -39,5 +39,5 @@ uv sync
 uv run btwr doctor
 ```
 
-See [`../context/data-pipeline.html`](../context/data-pipeline.html) for
+See [`../context/repos-and-workflows.html#end-to-end`](../context/repos-and-workflows.html#end-to-end) for
 the PHPP → CSV → manifest pipeline this CLI implements.
