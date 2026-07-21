@@ -82,12 +82,12 @@ class OpenpyxlWorkbookReader:
         for field in schema.variant_fields():
             if schema.section(field.section_id).start_row == field.row:
                 continue
-            if _clean_text(field.phpp_label) in {"", "-"}:
+            if _clean_text(field.phpp_label) in {"", "-"} and not field.label_from_workbook:
                 continue
             datatype = sheet.cell(field.row, 3).value
             units = sheet.cell(field.row, 4).value
             phpp_label = _clean_text(datatype) if field.label_from_workbook else field.phpp_label.strip()
-            if field.label_from_workbook and _is_placeholder_r_value(phpp_label):
+            if field.label_from_workbook and _is_placeholder_dynamic_label(phpp_label):
                 continue
             for variant in variant_columns:
                 value = sheet.cell(field.row, variant.column_index).value
@@ -229,8 +229,8 @@ def _is_blank_row(datatype: object, units: object, value: object) -> bool:
     return _clean_text(datatype) in {"", "-"} and _clean_text(units) in {"", "-"} and value in (None, "", "-")
 
 
-def _is_placeholder_r_value(label: str) -> bool:
-    return re.fullmatch(r"\d{2}ud-", label) is not None
+def _is_placeholder_dynamic_label(label: str) -> bool:
+    return label in {"", "-"} or re.fullmatch(r"\d{2}ud-", label) is not None
 
 
 _MONTHS = (

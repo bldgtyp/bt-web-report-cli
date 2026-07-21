@@ -153,6 +153,17 @@ def test_scrape_linde_fixture_uses_dynamic_r_value_labels(scraped_linde: ScrapeO
     assert "06ud-g-R-FL - Flat" in r_value_labels
     assert "02ud-" not in r_value_labels
 
+    envelope_rows = [row for row in rows if row["section"] == "envelope" and row["variant_id"] == "as_drawn"]
+    envelope_ids = {row["field_id"] for row in envelope_rows}
+    envelope_labels = {row["phpp_label"] for row in envelope_rows}
+
+    assert "envelope.assembly_06" in envelope_ids
+    assert "envelope.assembly_07" in envelope_ids
+    assert "envelope.assembly_08" in envelope_ids
+    assert "R-AT - Attic" in envelope_labels
+    assert "R-FL - Flat" in envelope_labels
+    assert "R-VT - Vaulted" in envelope_labels
+
     airflow_rows = list(csv.DictReader((output_dir / "room-airflows.csv").open()))
     assert len([row for row in airflow_rows if row["row_type"] == "room"]) == 28
     assert airflow_rows[-1]["room_name"] == "Totals"
