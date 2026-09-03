@@ -1,7 +1,7 @@
 import csv
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
@@ -10,9 +10,15 @@ from click.testing import CliRunner
 from openpyxl import Workbook
 
 from bt_web_report_cli.__main__ import main
-from bt_web_report_cli.io.workbook_openpyxl import OpenpyxlWorkbookReader
+from bt_web_report_cli.io.workbook_openpyxl import (
+    _M2_TO_FT2,
+    _M3_TO_FT3,
+    _M3H_TO_CFM,
+    OpenpyxlWorkbookReader,
+)
 from bt_web_report_cli.phpp.write import REPORT_CSV_TABLES
 from bt_web_report_schemas.phpp.models import ClimateMonthlySchema, RoomVentilationSchema, WorkbookSchema
+from bt_web_report_schemas.phpp.v10_6.room_ventilation import ROOM_VENTILATION
 
 FIXTURE_DIR = Path(os.environ.get("BTWR_TEST_PHPP_DIR", Path(__file__).resolve().parents[2] / "test-files" / "phpp"))
 VANDAM_DIR = FIXTURE_DIR / "2606-Vandam-St"
@@ -276,6 +282,48 @@ def test_scrape_all_null_variant_data_fails_loudly(tmp_path: Path) -> None:
     assert "No variant data found" in result.output
 
 
+def test_room_airflow_totals_group_by_ventilation_unit(tmp_path: Path) -> None:
+    # PHPP totals the room block per ventilation unit and drops rows carried at q = 0.
+    # Summing the block flat reports a number that belongs to no single unit (issue #1).
+    workbook_path = tmp_path / "two-units.xlsx"
+    _save_room_ventilation_workbook(
+        workbook_path,
+        rooms=(
+            RoomEntry(quantity=1, name="101-BEDROOM", unit=1, area_m2=20.0, height_m=2.5, v_sup_m3h=40.0),
+            RoomEntry(quantity=1, name="102-BEDROOM", unit=1, area_m2=20.0, height_m=2.5, v_sup_m3h=40.0),
+            RoomEntry(quantity=0, name="Kitchen Hood - ON", unit=2, area_m2=25.0, height_m=2.5, v_sup_m3h=1000.0),
+            RoomEntry(quantity=1, name="Kitchen Hood - OFF", unit=3, area_m2=25.0, height_m=2.5, v_sup_m3h=10.0),
+        ),
+    )
+
+    rows = OpenpyxlWorkbookReader(workbook_path).read_room_airflows(_room_ventilation_schema())
+
+    totals = [row for row in rows if row["row_type"] == "total"]
+    assert [row["allocation_to_vent_unit"] for row in totals] == [1, 2, 3]
+    assert totals[0]["v_sup_high_cfm"] == pytest.approx(80.0 * _M3H_TO_CFM)
+    assert totals[1]["v_sup_high_cfm"] == 0.0
+    assert totals[2]["v_sup_high_cfm"] == pytest.approx(10.0 * _M3H_TO_CFM)
+    assert totals[0]["room_area_ft2"] == pytest.approx(40.0 * _M2_TO_FT2)
+
+
+def test_room_airflow_totals_weight_by_phpp_quantity(tmp_path: Path) -> None:
+    # Column D is the multiplier for repeated rooms, so one entry standing in for two
+    # identical rooms contributes twice its area, volume, and airflow.
+    workbook_path = tmp_path / "repeated-rooms.xlsx"
+    _save_room_ventilation_workbook(
+        workbook_path,
+        rooms=(RoomEntry(quantity=2, name="201-TYPICAL UNIT", unit=1, area_m2=20.0, height_m=2.5, v_sup_m3h=40.0),),
+    )
+
+    rows = OpenpyxlWorkbookReader(workbook_path).read_room_airflows(_room_ventilation_schema())
+
+    totals = [row for row in rows if row["row_type"] == "total"]
+    assert len(totals) == 1
+    assert totals[0]["v_sup_high_cfm"] == pytest.approx(80.0 * _M3H_TO_CFM)
+    assert totals[0]["room_area_ft2"] == pytest.approx(40.0 * _M2_TO_FT2)
+    assert totals[0]["room_volume_ft3"] == pytest.approx(100.0 * _M3_TO_FT3)
+
+
 def test_variant_columns_follow_excel_column_order(tmp_path: Path) -> None:
     workbook_path = tmp_path / "variant-order.xlsx"
     workbook = _minimal_workbook()
@@ -338,6 +386,40 @@ def _assert_golden_csvs(actual_dir: Path, expected_dir: Path) -> None:
         assert (actual_dir / spec.filename).read_text().splitlines() == (
             expected_dir / spec.filename
         ).read_text().splitlines()
+
+
+@dataclass(frozen=True)
+class RoomEntry:
+    """One `Addl vent` room row, in the PHPP's own SI units."""
+
+    quantity: float
+    name: str
+    unit: int
+    area_m2: float
+    height_m: float
+    v_sup_m3h: float
+
+
+def _save_room_ventilation_workbook(path: Path, rooms: tuple[RoomEntry, ...]) -> None:
+    workbook = _minimal_workbook()
+    sheet = workbook.create_sheet("Addl vent")
+    sheet["C28"] = "Room"
+    for offset, room in enumerate(rooms):
+        row_number = 31 + offset
+        sheet[f"C{row_number}"] = offset + 1
+        sheet[f"D{row_number}"] = room.quantity
+        sheet[f"E{row_number}"] = room.name
+        sheet[f"F{row_number}"] = room.unit
+        sheet[f"G{row_number}"] = room.area_m2
+        sheet[f"H{row_number}"] = room.height_m
+        sheet[f"I{row_number}"] = room.area_m2 * room.height_m
+        sheet[f"J{row_number}"] = room.v_sup_m3h
+        sheet[f"Q{row_number}"] = 1
+    workbook.save(path)
+
+
+def _room_ventilation_schema() -> WorkbookSchema:
+    return replace(_minimal_schema(), room_ventilation=ROOM_VENTILATION)
 
 
 def _save_minimal_workbook(path: Path) -> None:

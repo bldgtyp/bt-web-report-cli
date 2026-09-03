@@ -153,7 +153,7 @@ class OpenpyxlWorkbookReader:
             rows.append(_room_airflow_row(sheet, row_number, room_name))
 
         if rows:
-            rows.append(_room_airflow_totals(rows))
+            rows.extend(_room_airflow_totals(rows))
         return rows
 
     def _read_named_range(self, name: str) -> Any:
@@ -268,6 +268,17 @@ _M3_TO_FT3 = 35.31466672
 _M2_TO_FT2 = 10.76391042
 _M_TO_FT = 3.280839895
 
+_ROOM_AIRFLOW_TOTAL_FIELDS = (
+    "room_area_ft2",
+    "room_volume_ft3",
+    "v_sup_high_cfm",
+    "v_eta_high_cfm",
+    "v_sup_med_cfm",
+    "v_eta_med_cfm",
+    "v_sup_low_cfm",
+    "v_eta_low_cfm",
+)
+
 
 def _convert_number(value: object, *, factor: float, offset: float = 0.0) -> object:
     if not isinstance(value, int | float):
@@ -300,28 +311,65 @@ def _room_airflow_row(sheet: Any, row_number: int, room_name: str) -> dict[str, 
     }
 
 
-def _room_airflow_totals(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    total_fields = (
-        "room_area_ft2",
-        "room_volume_ft3",
-        "v_sup_high_cfm",
-        "v_eta_high_cfm",
-        "v_sup_med_cfm",
-        "v_eta_med_cfm",
-        "v_sup_low_cfm",
-        "v_eta_low_cfm",
-    )
-    totals: dict[str, Any] = {
-        "row_type": "total",
-        "room_name": "Totals",
-        "amount": "",
-        "allocation_to_vent_unit": "",
-        "room_height_ft": "",
-        "excel_row": "",
-    }
-    for field in total_fields:
-        totals[field] = sum(_number(row[field]) for row in rows)
-    return totals
+def _room_airflow_totals(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Total the room rows the way PHPP totals the same block: one row per ventilation unit.
+
+    PHPP feeds its unit table with ``SUMIF($F$31:$F$280, <unit no.>, AF$31:AF$280)``,
+    where ``AF`` is ``IF(AND($D>0, ISNUMBER(J)), $D*J, "")``. So the design airflow of a
+    unit is the quantity-weighted sum of only the rooms allocated to it, and a row carried
+    at ``q = 0`` (a kitchen hood modelled as its own unit, say) contributes nothing.
+    Summing straight across the block reports a number that is not the design airflow of
+    any single unit.
+
+    A unit that appears in the block still gets a row when every one of its rooms is
+    switched off, so a zero total is stated rather than the unit disappearing.
+    """
+
+    totals: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        unit = row["allocation_to_vent_unit"]
+        key = _clean_text(unit)
+        total = totals.get(key)
+        if total is None:
+            total = totals[key] = {
+                "row_type": "total",
+                "room_name": "Totals",
+                "amount": "",
+                "allocation_to_vent_unit": "" if unit is None else unit,
+                "room_height_ft": "",
+                "excel_row": "",
+            } | {field: 0.0 for field in _ROOM_AIRFLOW_TOTAL_FIELDS}
+        quantity = _room_quantity(row["amount"])
+        if quantity <= 0:
+            continue
+        for field in _ROOM_AIRFLOW_TOTAL_FIELDS:
+            total[field] += _number(row[field]) * quantity
+    return [totals[key] for key in sorted(totals, key=_room_unit_sort_key)]
+
+
+def _room_quantity(value: object) -> float:
+    """PHPP column D, the multiplier for repeated rooms.
+
+    PHPP drops a row with a blank quantity from every weighted column; a named room is
+    kept at one here instead, so a data-entry gap never silently zeroes a listed room.
+    """
+
+    if isinstance(value, int | float):
+        return float(value)
+    text = _clean_text(value)
+    if not text:
+        return 1.0
+    try:
+        return float(text)
+    except ValueError:
+        return 1.0
+
+
+def _room_unit_sort_key(unit: str) -> tuple[int, float, str]:
+    try:
+        return (0, float(unit), "")
+    except ValueError:
+        return (1, 0.0, unit)
 
 
 def _number(value: object) -> float:
