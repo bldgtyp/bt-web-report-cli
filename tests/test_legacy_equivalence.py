@@ -147,6 +147,11 @@ def test_legacy_climate_values_are_in_new_climate_monthly_csv(scraped_legacy_van
 def test_legacy_room_airflow_values_are_in_new_room_airflows_csv(scraped_legacy_vandam: Path) -> None:
     actual = _records_by(("room_name",), scraped_legacy_vandam / "room-airflows.csv")
     for row in _read_legacy_csv("room_airflows.csv"):
+        # The legacy scraper summed the whole room block into one "Totals" row, ignoring the
+        # PHPP quantity and the per-unit allocation. The new scraper totals per ventilation
+        # unit the way PHPP does, so only the room rows are comparable (cli issue #1).
+        if row["Room Name"] == "Totals":
+            continue
         key = (row["Room Name"],)
         assert key in actual
         for old_field, new_field in ROOM_AIRFLOW_FIELD_MAP.items():
