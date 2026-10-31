@@ -60,6 +60,17 @@ ROOM_AIRFLOWS_FIELDNAMES = (
     "excel_row",
 )
 
+ENVELOPE_AREAS_FIELDNAMES = (
+    "assembly_id",
+    "assembly_name",
+    "envelope_field_id",
+    "group_number",
+    "exposure",
+    "area_m2",
+    "area_ft2",
+    "surface_count",
+)
+
 BUILDING_METRICS_FIELDNAMES = (
     "metric",
     "variant_id",
@@ -107,6 +118,7 @@ DEMAND_DETAIL_FIELDNAMES = (
 VARIANTS_TABLE = CsvTableSpec("variants.csv", VARIANTS_FIELDNAMES)
 CLIMATE_MONTHLY_TABLE = CsvTableSpec("climate-monthly.csv", CLIMATE_MONTHLY_FIELDNAMES)
 ROOM_AIRFLOWS_TABLE = CsvTableSpec("room-airflows.csv", ROOM_AIRFLOWS_FIELDNAMES)
+ENVELOPE_AREAS_TABLE = CsvTableSpec("envelope-areas.csv", ENVELOPE_AREAS_FIELDNAMES)
 BUILDING_METRICS_TABLE = CsvTableSpec("building-metrics.csv", BUILDING_METRICS_FIELDNAMES)
 CERTIFICATION_TABLE = CsvTableSpec("certification.csv", CERTIFICATION_FIELDNAMES)
 ENERGY_TABLE = CsvTableSpec("energy.csv", ENERGY_FIELDNAMES)
@@ -116,6 +128,7 @@ REPORT_CSV_TABLES = (
     VARIANTS_TABLE,
     CLIMATE_MONTHLY_TABLE,
     ROOM_AIRFLOWS_TABLE,
+    ENVELOPE_AREAS_TABLE,
     BUILDING_METRICS_TABLE,
     CERTIFICATION_TABLE,
     ENERGY_TABLE,
@@ -138,6 +151,7 @@ def write_report_data(
     variants_rows: list[dict[str, Any]],
     climate_monthly_rows: list[dict[str, Any]],
     room_airflow_rows: list[dict[str, Any]],
+    envelope_area_rows: list[dict[str, Any]],
     building_metric_rows: list[dict[str, Any]],
     certification_rows: list[dict[str, Any]],
     energy_rows: list[dict[str, Any]],
@@ -156,6 +170,7 @@ def write_report_data(
             (VARIANTS_TABLE, variants_rows),
             (CLIMATE_MONTHLY_TABLE, climate_monthly_rows),
             (ROOM_AIRFLOWS_TABLE, room_airflow_rows),
+            (ENVELOPE_AREAS_TABLE, envelope_area_rows),
             (BUILDING_METRICS_TABLE, building_metric_rows),
             (CERTIFICATION_TABLE, certification_rows),
             (ENERGY_TABLE, energy_rows),

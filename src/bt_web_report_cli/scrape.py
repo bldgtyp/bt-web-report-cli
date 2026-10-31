@@ -61,6 +61,7 @@ def scrape_project(
         raise ValueError(msg)
     climate_rows = reader.read_climate_monthly(schema)
     room_airflow_rows = reader.read_room_airflows(schema)
+    envelope_area_rows = reader.read_envelope_areas(schema)
     if not climate_rows:
         msg = f"No monthly climate data found in workbook: {workbook_path}"
         raise ValueError(msg)
@@ -84,6 +85,7 @@ def scrape_project(
         report_rows,
         climate_rows,
         room_airflow_rows,
+        envelope_area_rows,
         derived_tables.building_metrics,
         derived_tables.certification,
         derived_tables.energy,
