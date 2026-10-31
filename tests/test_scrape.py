@@ -17,7 +17,15 @@ from bt_web_report_cli.io.workbook_openpyxl import (
     OpenpyxlWorkbookReader,
 )
 from bt_web_report_cli.phpp.write import REPORT_CSV_TABLES
-from bt_web_report_schemas.phpp.models import ClimateMonthlySchema, RoomVentilationSchema, WorkbookSchema
+from bt_web_report_schemas.phpp.models import (
+    ClimateMonthlySchema,
+    EnvelopeAreasSchema,
+    FieldRef,
+    RoomVentilationSchema,
+    SectionMap,
+    WorkbookSchema,
+)
+from bt_web_report_schemas.phpp.v10_6.envelope_areas import ENVELOPE_AREAS
 from bt_web_report_schemas.phpp.v10_6.room_ventilation import ROOM_VENTILATION
 
 FIXTURE_DIR = Path(os.environ.get("BTWR_TEST_PHPP_DIR", Path(__file__).resolve().parents[2] / "test-files" / "phpp"))
@@ -78,6 +86,14 @@ def test_scrape_fixture_writes_manifest_and_variants_csv(scraped_vandam: ScrapeO
 
     climate_rows = list(csv.DictReader((output_dir / "climate-monthly.csv").open()))
     assert len(climate_rows) == 96
+
+    area_rows = list(csv.DictReader((output_dir / "envelope-areas.csv").open()))
+    front_wall = [row for row in area_rows if row["assembly_id"] == "01ud"]
+    assert [(row["group_number"], row["exposure"]) for row in front_wall] == [("8", "A"), ("9", "B")]
+    assert {row["envelope_field_id"] for row in front_wall} == {"envelope.floor_bg"}
+    assert front_wall[0]["assembly_name"] == "Ext. Wall - Front"
+    partywall = next(row for row in area_rows if row["assembly_id"] == "06ud")
+    assert (partywall["group_number"], partywall["exposure"]) == ("18", "")
     jan_exterior = [row for row in climate_rows if row["month"] == "jan" and row["metric"] == "exterior_temperature"][0]
     assert jan_exterior["units"] == "degF"
     assert float(jan_exterior["value"]) == 32.54
@@ -422,6 +438,60 @@ def _room_ventilation_schema() -> WorkbookSchema:
     return replace(_minimal_schema(), room_ventilation=ROOM_VENTILATION)
 
 
+def test_envelope_areas_sum_by_assembly_and_group(tmp_path: Path) -> None:
+    # The U-values block keys the assembly to Variants row "b" through its first
+    # layer name; Areas rows roll up per PHPP group so ground and ambient
+    # surfaces of one assembly keep their own exposure.
+    workbook_path = tmp_path / "areas.xlsx"
+    workbook = _minimal_workbook()
+    u_values = workbook.create_sheet("U-values")
+    u_values["Q8"] = "01ud"
+    u_values["L8"] = "Wall"
+    u_values["E13"] = "b-Wall"
+    u_values["Q29"] = "02ud"
+    areas = workbook.create_sheet("Areas")
+    for row_number, (group, area, assembly) in enumerate(
+        (
+            ("8-External wall - ambient", 10.0, "01ud-Wall"),
+            ("8-", 5.0, "01ud-Wall"),
+            ("9-", 7.5, "01ud-Wall"),
+            ("18-Building element towards neighbour", 3.0, "01ud-Wall"),
+            ("2-Fenster", 2.0, "Wert aus Fensterblatt"),
+            ("8-", "", "01ud-Wall"),
+        ),
+        start=41,
+    ):
+        areas[f"M{row_number}"] = group
+        areas[f"Z{row_number}"] = area
+        areas[f"AA{row_number}"] = assembly
+    workbook.save(workbook_path)
+
+    rows = OpenpyxlWorkbookReader(workbook_path).read_envelope_areas(_envelope_areas_schema())
+
+    assert [(row["group_number"], row["exposure"], row["area_m2"], row["surface_count"]) for row in rows] == [
+        (8, "A", 15.0, 2),
+        (9, "B", 7.5, 1),
+        (18, "", 3.0, 1),
+    ]
+    assert {(row["assembly_id"], row["assembly_name"], row["envelope_field_id"]) for row in rows} == {
+        ("01ud", "Wall", "envelope.wall_bg")
+    }
+    assert rows[0]["area_ft2"] == pytest.approx(15.0 * _M2_TO_FT2)
+
+
+def _envelope_areas_schema() -> WorkbookSchema:
+    envelope = SectionMap(
+        id="envelope",
+        label="Envelope",
+        start_row=10,
+        fields=tuple(
+            FieldRef(id=field_id, phpp_label=label, row=10 + offset, section_id="envelope", section_label="Envelope")
+            for offset, (field_id, label) in enumerate((("envelope", "ENVELOPE"), ("floor_bg", "a"), ("wall_bg", "b")))
+        ),
+    )
+    return replace(_minimal_schema(), variants=(envelope,), envelope_areas=ENVELOPE_AREAS)
+
+
 def _save_minimal_workbook(path: Path) -> None:
     _minimal_workbook().save(path)
 
@@ -459,5 +529,23 @@ def _minimal_schema() -> WorkbookSchema:
             entry_col="A",
             first_entry_label="1",
             last_col="B",
+        ),
+        envelope_areas=EnvelopeAreasSchema(
+            areas_sheet="Areas",
+            areas_first_row=1,
+            areas_last_row=1,
+            group_col="A",
+            area_col="B",
+            assembly_col="C",
+            u_values_sheet="U-values",
+            u_values_first_block_row=1,
+            u_values_block_height=2,
+            u_values_id_col="A",
+            u_values_name_col="B",
+            u_values_layer_col="C",
+            u_values_layer_first_offset=1,
+            u_values_layer_count=1,
+            ambient_groups=(),
+            ground_groups=(),
         ),
     )

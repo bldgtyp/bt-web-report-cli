@@ -11,7 +11,7 @@ from typing import Any
 from openpyxl import load_workbook
 from openpyxl.utils import column_index_from_string, get_column_letter
 
-from bt_web_report_schemas.phpp.models import WorkbookSchema
+from bt_web_report_schemas.phpp.models import EnvelopeAreasSchema, WorkbookSchema
 
 
 @dataclass(frozen=True)
@@ -156,6 +156,72 @@ class OpenpyxlWorkbookReader:
             rows.extend(_room_airflow_totals(rows))
         return rows
 
+    def read_envelope_areas(self, schema: WorkbookSchema) -> list[dict[str, Any]]:
+        """Sum Areas worksheet surfaces per assembly and PHPP group.
+
+        Each row carries the Variants ENVELOPE field whose R-value drives the
+        assembly, resolved through the U-values block key letter, so the
+        renderer can pair areas with per-variant R-values without string
+        matching on assembly names.
+        """
+
+        areas_schema = schema.envelope_areas
+        assemblies = self._read_u_values_assemblies(schema)
+        sheet = self._workbook[areas_schema.areas_sheet]
+
+        totals: dict[tuple[str, int], dict[str, Any]] = {}
+        for row_number in range(areas_schema.areas_first_row, areas_schema.areas_last_row + 1):
+            assembly_id = _assembly_id(sheet[f"{areas_schema.assembly_col}{row_number}"].value)
+            group_number = _group_number(sheet[f"{areas_schema.group_col}{row_number}"].value)
+            area = sheet[f"{areas_schema.area_col}{row_number}"].value
+            if assembly_id is None or group_number is None or not isinstance(area, int | float):
+                continue
+            entry = totals.setdefault((assembly_id, group_number), {"area_m2": 0.0, "surface_count": 0})
+            entry["area_m2"] += float(area)
+            entry["surface_count"] += 1
+
+        rows: list[dict[str, Any]] = []
+        for (assembly_id, group_number), entry in sorted(totals.items()):
+            assembly = assemblies.get(assembly_id, {})
+            rows.append(
+                {
+                    "assembly_id": assembly_id,
+                    "assembly_name": assembly.get("name", ""),
+                    "envelope_field_id": assembly.get("envelope_field_id", ""),
+                    "group_number": group_number,
+                    "exposure": areas_schema.exposure(group_number),
+                    "area_m2": entry["area_m2"],
+                    "area_ft2": entry["area_m2"] * _M2_TO_FT2,
+                    "surface_count": entry["surface_count"],
+                }
+            )
+        return rows
+
+    def _read_u_values_assemblies(self, schema: WorkbookSchema) -> dict[str, dict[str, str]]:
+        """Map U-values assembly ids (``02ud``) to their name and Variants envelope field."""
+
+        areas_schema = schema.envelope_areas
+        sheet = self._workbook[areas_schema.u_values_sheet]
+        envelope_fields = _envelope_assembly_fields(schema)
+        assemblies: dict[str, dict[str, str]] = {}
+        block_row = areas_schema.u_values_first_block_row
+        while block_row <= sheet.max_row:
+            assembly_id = _clean_text(sheet[f"{areas_schema.u_values_id_col}{block_row}"].value)
+            if not assembly_id:
+                break
+            name = _clean_text(sheet[f"{areas_schema.u_values_name_col}{block_row}"].value)
+            envelope_field_id = ""
+            first_layer = block_row + areas_schema.u_values_layer_first_offset
+            for layer_row in range(first_layer, first_layer + areas_schema.u_values_layer_count):
+                key = _variant_key(sheet[f"{areas_schema.u_values_layer_col}{layer_row}"].value)
+                if key is not None and key in envelope_fields:
+                    envelope_field_id = envelope_fields[key]
+                    break
+            if name or envelope_field_id:
+                assemblies[assembly_id] = {"name": name, "envelope_field_id": envelope_field_id}
+            block_row += areas_schema.u_values_block_height
+        return assemblies
+
     def _read_named_range(self, name: str) -> Any:
         defined_name = self._workbook.defined_names.get(name)
         if defined_name is None:
@@ -227,6 +293,45 @@ def _clean_text(value: object) -> str:
 
 def _is_blank_row(datatype: object, units: object, value: object) -> bool:
     return _clean_text(datatype) in {"", "-"} and _clean_text(units) in {"", "-"} and value in (None, "", "-")
+
+
+def _assembly_id(value: object) -> str | None:
+    """``02ud-Cellar-Wall`` -> ``02ud``; anything without the PHPP id prefix is skipped."""
+
+    match = re.match(r"\s*(\d{2}ud)-", str(value)) if isinstance(value, str) else None
+    return match.group(1) if match else None
+
+
+def _group_number(value: object) -> int | None:
+    """``9-`` or ``8-External wall - ambient`` -> the PHPP group number."""
+
+    if isinstance(value, int | float):
+        return int(value)
+    match = re.match(r"\s*(\d+)\s*-", str(value)) if isinstance(value, str) else None
+    return int(match.group(1)) if match else None
+
+
+def _variant_key(value: object) -> str | None:
+    """``a-Cellar-Wall`` -> ``a``: the letter PHPP looks up in the Variants layer table."""
+
+    match = re.match(r"\s*([a-z])-", str(value)) if isinstance(value, str) else None
+    return match.group(1) if match else None
+
+
+def _envelope_assembly_fields(schema: WorkbookSchema) -> dict[str, str]:
+    """Variants key letter -> envelope field id, in ENVELOPE section row order.
+
+    Row ``start_row + 1`` holds assembly ``a`` (the section's first row is its
+    heading), matching the Variants layer table that PHPP's U-values sheet
+    looks up by letter.
+    """
+
+    try:
+        section = schema.section("envelope")
+    except KeyError:
+        return {}
+    fields = sorted((field for field in section.fields if field.row > section.start_row), key=lambda f: f.row)
+    return {chr(ord("a") + index): f"{section.id}.{field.id}" for index, field in enumerate(fields)}
 
 
 def _is_placeholder_dynamic_label(label: str) -> bool:
